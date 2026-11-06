@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evaluation": {
+    "TOP_K_EVAL": 0,
+    "RE_RANKING": false,
+    "NECK_FEAT": "before",
+    "FEAT_NORM": true,
+    "same_camera_filter": "all_gallery",
+    "precision": "float32"
+  },
+  "feature_dimension": 768,
+  "platform_rule": "WHU zero-based cameras 0-4 Ground; 5-6 Aerial",
+  "versions": {
+    "torch": "1.12.1+cu113",
+    "numpy": "1.24.3"
+  },
+  "states": {
+    "uad": {
+      "checkpoint": "/project/code/WHU_base/WHU_DDP/logs/UAD_1000_DDP/transformer_120.pth",
+      "checkpoint_sha256": "9bb3d547b98f80a685a47e1dee1bb633fdadf910d4319912f054db0f63f0b0e9",
+      "adapter_enabled": true,
+      "taur_architecture": false,
+      "config": "DATALOADER:\n  CAMERA_PRIORITY: false\n  NUM_INSTANCE: 4\n  NUM_WORKERS: 8\n  SAMPLER: PKM\nDATASETS:\n  DATASET_DIR: WHU-MARS\n  FILTER_GD: false\n  MODALITIES:\n  - RGB\n  - IR\n  - Thermal\n  NAMES: WHU-MARS\n  ROOT_DIR: /project/code/data\nINPUT:\n  PADDING: 10\n  PIXEL_MEAN:\n  - 0.5\n  - 0.5\n  - 0.5\n  PIXEL_STD:\n  - 0.5\n  - 0.5\n  - 0.5\n  PROB: 0.5\n  RE_PROB: 0.5\n  SIZE_TEST:\n  - 256\n  - 128\n  SIZE_TRAIN:\n  - 256\n  - 128\nMODEL:\n  ATT_DROP_RATE: 0.0\n  COS_LAYER: false\n  DEVICE: cuda\n  DEVICE_ID: '0'\n  DEVIDE_LENGTH: 4\n  DIST_TRAIN: false\n  DROP_OUT: 0.0\n  DROP_PATH: 0.1\n  GPD_MOMENTUM: 0.2\n  ID_LOSS_TYPE: softmax\n  ID_LOSS_WEIGHT: 1.0\n  IF_LABELSMOOTH: 'off'\n  IF_WITH_CENTER: 'no'\n  JPM: false\n  LAST_STRIDE: 1\n  METRIC_LOSS_TYPE: wrt\n  NAME: transformer\n  NECK: bnneck\n  NO_MARGIN: true\n  PCA_LOSS_WEIGHT: 0.01\n  PRETRAIN_CHOICE: none\n  PRETRAIN_PATH: jx_vit_base_p16_224-80ecf9dd.pth\n  RE_ARRANGE: true\n  SHIFT_NUM: 5\n  SHUFFLE_GROUP: 2\n  SIE_CAMERA: false\n  SIE_COE: 3.0\n  SIE_VIEW: false\n  STRIDE_SIZE:\n  - 16\n  - 16\n  TRANSFORMER_TYPE: vit_base_in\n  TRIPLET_LOSS_WEIGHT: 1.0\n  WRT_STABLE: false\nOUTPUT_DIR: ./logs/UAD_1000\nSOLVER:\n  BASE_LR: 0.008\n  BIAS_LR_FACTOR: 2\n  CENTER_LOSS_WEIGHT: 0.0005\n  CENTER_LR: 0.5\n  CHECKPOINT_PERIOD: 120\n  COSINE_MARGIN: 0.5\n  COSINE_SCALE: 30\n  EVAL_PERIOD: 10\n  GAMMA: 0.1\n  IMS_PER_BATCH: 64\n  LARGE_FC_LR: false\n  LOG_PERIOD: 50\n  LOSS_TYPE: base+pca+gpd\n  MARGIN: 0.3\n  MAX_EPOCHS: 120\n  MOMENTUM: 0.9\n  OPTIMIZER_NAME: SGD\n  SEED: 1234\n  STEPS:\n  - 40\n  - 70\n  WARMUP_EPOCHS: 5\n  WARMUP_FACTOR: 0.01\n  WARMUP_METHOD: linear\n  WEIGHT_DECAY: 0.0001\n  WEIGHT_DECAY_BIAS: 0.0001\nTAUR:\n  ADAPTER_LR_FACTOR: 3.0\n  BOTTLENECK: 128\n  ENABLED: false\n  LAYERS:\n  - 6\n  - 9\n  LOG_DIRECTION_GRADS: false\n  MARGIN: 0.03\n  RAMP_END_EPOCH: 20\n  RANK_WEIGHT: 0.1\n  RHO: 0.1\n  TEMPERATURE: 0.07\n  WARMUP_EPOCHS: 5\nTEST:\n  DETAILED_DOMAIN_EVAL: false\n  DIST_MAT: dist_mat.npy\n  EVAL: false\n  FEAT_NORM: 'yes'\n  IMS_PER_BATCH: 512\n  NECK_FEAT: before\n  RE_RANKING: false\n  TOP_K_EVAL: 0\n  WEIGHT: ''\n",
+      "feature_file": "uad_features.npz",
+      "feature_sha256": "35a25ff26f711bf3474fe0722c1fd0e953ba26112dfd57bfd9558af6ddeb4c12",
+      "query_count": 6405,
+      "gallery_count": 93609
+    },
+    "taur_on": {
+      "checkpoint": "/project/code/WHU_base/WHU_MD+MOS+UPCL+WSL/logs/TAUR_1000_DDP_v2/transformer_120.pth",
+      "checkpoint_sha256": "41d82ca8d14e557f0b1ba8e3bc26f02af477b0b98f2f9326da7fa05b13cb27ef",
+      "adapter_enabled": true,
+      "taur_architecture": true,
+      "config": "DATALOADER:\n  CAMERA_PRIORITY: true\n  NUM_INSTANCE: 4\n  NUM_WORKERS: 8\n  SAMPLER: PKM\nDATASETS:\n  DATASET_DIR: WHU-MARS\n  FILTER_GD: false\n  MODALITIES:\n  - RGB\n  - IR\n  - Thermal\n  NAMES: WHU-MARS\n  ROOT_DIR: /project/code/data\nINPUT:\n  PADDING: 10\n  PIXEL_MEAN:\n  - 0.5\n  - 0.5\n  - 0.5\n  PIXEL_STD:\n  - 0.5\n  - 0.5\n  - 0.5\n  PROB: 0.5\n  RE_PROB: 0.5\n  SIZE_TEST:\n  - 256\n  - 128\n  SIZE_TRAIN:\n  - 256\n  - 128\nMODEL:\n  ATT_DROP_RATE: 0.0\n  COS_LAYER: false\n  DEVICE: cuda\n  DEVICE_ID: '0'\n  DEVIDE_LENGTH: 4\n  DIST_TRAIN: false\n  DROP_OUT: 0.0\n  DROP_PATH: 0.1\n  GPD_MOMENTUM: 0.2\n  ID_LOSS_TYPE: softmax\n  ID_LOSS_WEIGHT: 1.0\n  IF_LABELSMOOTH: 'off'\n  IF_WITH_CENTER: 'no'\n  JPM: false\n  LAST_STRIDE: 1\n  METRIC_LOSS_TYPE: wrt\n  NAME: transformer\n  NECK: bnneck\n  NO_MARGIN: true\n  PCA_LOSS_WEIGHT: 0.01\n  PRETRAIN_CHOICE: none\n  PRETRAIN_PATH: jx_vit_base_p16_224-80ecf9dd.pth\n  RE_ARRANGE: true\n  SHIFT_NUM: 5\n  SHUFFLE_GROUP: 2\n  SIE_CAMERA: false\n  SIE_COE: 3.0\n  SIE_VIEW: false\n  STRIDE_SIZE:\n  - 16\n  - 16\n  TRANSFORMER_TYPE: vit_base_in\n  TRIPLET_LOSS_WEIGHT: 1.0\n  WRT_STABLE: true\nOUTPUT_DIR: ./logs/TAUR_1000_v2\nSOLVER:\n  BASE_LR: 0.008\n  BIAS_LR_FACTOR: 2\n  CENTER_LOSS_WEIGHT: 0.0005\n  CENTER_LR: 0.5\n  CHECKPOINT_PERIOD: 10\n  COSINE_MARGIN: 0.5\n  COSINE_SCALE: 30\n  EVAL_PERIOD: 10\n  GAMMA: 0.1\n  IMS_PER_BATCH: 64\n  LARGE_FC_LR: false\n  LOG_PERIOD: 50\n  LOSS_TYPE: base+pca+gpd\n  MARGIN: 0.3\n  MAX_EPOCHS: 120\n  MOMENTUM: 0.9\n  OPTIMIZER_NAME: SGD\n  SEED: 1234\n  STEPS:\n  - 40\n  - 70\n  WARMUP_EPOCHS: 5\n  WARMUP_FACTOR: 0.01\n  WARMUP_METHOD: linear\n  WEIGHT_DECAY: 0.0001\n  WEIGHT_DECAY_BIAS: 0.0001\nTAUR:\n  ADAPTER_LR_FACTOR: 3.0\n  BOTTLENECK: 128\n  ENABLED: true\n  LAYERS:\n  - 6\n  - 9\n  LOG_DIRECTION_GRADS: false\n  MARGIN: 0.03\n  RAMP_END_EPOCH: 20\n  RANK_WEIGHT: 0.1\n  RHO: 0.1\n  TEMPERATURE: 0.07\n  WARMUP_EPOCHS: 5\nTEST:\n  DETAILED_DOMAIN_EVAL: false\n  DIST_MAT: dist_mat.npy\n  EVAL: false\n  FEAT_NORM: 'yes'\n  IMS_PER_BATCH: 512\n  NECK_FEAT: before\n  RE_RANKING: false\n  TOP_K_EVAL: 0\n  WEIGHT: ''\n",
+      "feature_file": "taur_on_features.npz",
+      "feature_sha256": "00f5263eec0582a4fb3530b003f222593fafe0ab3d1fa80952a5625128463764",
+      "query_count": 6405,
+      "gallery_count": 93609
+    },
+    "taur_off": {
+      "checkpoint": "/project/code/WHU_base/WHU_MD+MOS+UPCL+WSL/logs/TAUR_1000_DDP_v2/transformer_120.pth",
+      "checkpoint_sha256": "41d82ca8d14e557f0b1ba8e3bc26f02af477b0b98f2f9326da7fa05b13cb27ef",
+      "adapter_enabled": false,
+      "taur_architecture": true,
+      "config": "DATALOADER:\n  CAMERA_PRIORITY: true\n  NUM_INSTANCE: 4\n  NUM_WORKERS: 8\n  SAMPLER: PKM\nDATASETS:\n  DATASET_DIR: WHU-MARS\n  FILTER_GD: false\n  MODALITIES:\n  - RGB\n  - IR\n  - Thermal\n  NAMES: WHU-MARS\n  ROOT_DIR: /project/code/data\nINPUT:\n  PADDING: 10\n  PIXEL_MEAN:\n  - 0.5\n  - 0.5\n  - 0.5\n  PIXEL_STD:\n  - 0.5\n  - 0.5\n  - 0.5\n  PROB: 0.5\n  RE_PROB: 0.5\n  SIZE_TEST:\n  - 256\n  - 128\n  SIZE_TRAIN:\n  - 256\n  - 128\nMODEL:\n  ATT_DROP_RATE: 0.0\n  COS_LAYER: false\n  DEVICE: cuda\n  DEVICE_ID: '0'\n  DEVIDE_LENGTH: 4\n  DIST_TRAIN: false\n  DROP_OUT: 0.0\n  DROP_PATH: 0.1\n  GPD_MOMENTUM: 0.2\n  ID_LOSS_TYPE: softmax\n  ID_LOSS_WEIGHT: 1.0\n  IF_LABELSMOOTH: 'off'\n  IF_WITH_CENTER: 'no'\n  JPM: false\n  LAST_STRIDE: 1\n  METRIC_LOSS_TYPE: wrt\n  NAME: transformer\n  NECK: bnneck\n  NO_MARGIN: true\n  PCA_LOSS_WEIGHT: 0.01\n  PRETRAIN_CHOICE: none\n  PRETRAIN_PATH: jx_vit_base_p16_224-80ecf9dd.pth\n  RE_ARRANGE: true\n  SHIFT_NUM: 5\n  SHUFFLE_GROUP: 2\n  SIE_CAMERA: false\n  SIE_COE: 3.0\n  SIE_VIEW: false\n  STRIDE_SIZE:\n  - 16\n  - 16\n  TRANSFORMER_TYPE: vit_base_in\n  TRIPLET_LOSS_WEIGHT: 1.0\n  WRT_STABLE: true\nOUTPUT_DIR: ./logs/TAUR_1000_v2\nSOLVER:\n  BASE_LR: 0.008\n  BIAS_LR_FACTOR: 2\n  CENTER_LOSS_WEIGHT: 0.0005\n  CENTER_LR: 0.5\n  CHECKPOINT_PERIOD: 10\n  COSINE_MARGIN: 0.5\n  COSINE_SCALE: 30\n  EVAL_PERIOD: 10\n  GAMMA: 0.1\n  IMS_PER_BATCH: 64\n  LARGE_FC_LR: false\n  LOG_PERIOD: 50\n  LOSS_TYPE: base+pca+gpd\n  MARGIN: 0.3\n  MAX_EPOCHS: 120\n  MOMENTUM: 0.9\n  OPTIMIZER_NAME: SGD\n  SEED: 1234\n  STEPS:\n  - 40\n  - 70\n  WARMUP_EPOCHS: 5\n  WARMUP_FACTOR: 0.01\n  WARMUP_METHOD: linear\n  WEIGHT_DECAY: 0.0001\n  WEIGHT_DECAY_BIAS: 0.0001\nTAUR:\n  ADAPTER_LR_FACTOR: 3.0\n  BOTTLENECK: 128\n  ENABLED: true\n  LAYERS:\n  - 6\n  - 9\n  LOG_DIRECTION_GRADS: false\n  MARGIN: 0.03\n  RAMP_END_EPOCH: 20\n  RANK_WEIGHT: 0.1\n  RHO: 0.1\n  TEMPERATURE: 0.07\n  WARMUP_EPOCHS: 5\nTEST:\n  DETAILED_DOMAIN_EVAL: false\n  DIST_MAT: dist_mat.npy\n  EVAL: false\n  FEAT_NORM: 'yes'\n  IMS_PER_BATCH: 512\n  NECK_FEAT: before\n  RE_RANKING: false\n  TOP_K_EVAL: 0\n  WEIGHT: ''\n",
+      "feature_file": "taur_off_features.npz",
+      "feature_sha256": "8939435de1478301a9e83b0f9b7922da11221b77dbcec0bb425bd8a8591fdcd9",
+      "query_count": 6405,
+      "gallery_count": 93609
+    }
+  },
+  "analysis": {
+    "chunk_size": 32,
+    "bootstrap_samples": 1000,
+    "bootstrap_seed": 1234,
+    "bootstrap_unit": "query_pid",
+    "full_gallery": true,
+    "sorting": "FP32 normalized squared Euclidean; torch.argsort",
+    "tie_policy": "torch default ordering; V3 C_img/C_id use strict similarity >",
+    "limitation": "Fixed checkpoints/query sampling only; no across-training-seed inference"
+  }
+}

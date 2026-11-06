@@ -1,0 +1,1278 @@
+=== PAGE 1 ===
+MOS: Mitigating Optical-SAR Modality Gap for Cross-Modal Ship
+Re-Identification
+Yujian Zhao1, Hankun Liu2, Guanglin Niu1*
+1 School of Artificial Intelligence, Beihang University
+2 School of Computer Science and Engineering, Beihang University
+{yjzhao1019, lhk2783497478, beihangngl}@buaa.edu.cn
+Abstract
+Cross-modal ship re-identification (ReID) between opti-
+cal and synthetic aperture radar (SAR) imagery has re-
+cently emerged as a critical yet underexplored task in mar-
+itime intelligence and surveillance. However, the substan-
+tial modality gap between optical and SAR images poses
+a major challenge for robust identification.
+To address
+this issue, we propose MOS, a novel framework designed
+to Mitigate the Optical–SAR modality gap and achieve
+modality-consistent feature learning for optical-SAR cross-
+modal ship ReID. MOS consists of two core components:
+(1) Modality-Consistent Representation Learning (MCRL)
+applies denoise SAR image procession and a class-wise
+modality alignment loss to align intra-identity feature dis-
+tributions across modalities. (2) Cross-modal Data Gen-
+eration and Feature fusion (CDGF) leverages a brownian
+bridge diffusion model to synthesize cross-modal samples,
+which are subsequently fused with original features during
+inference to enhance alignment and discriminability. Ex-
+tensive experiments on the HOSS ReID dataset demonstrate
+that MOS significantly surpasses state-of-the-art methods
+across all evaluation protocols, achieving notable improve-
+ments of +3.0%, +6.2%, and +16.4% in R1 accuracy un-
+der the ALL to ALL, Optical to SAR, and SAR to Optical
+settings, respectively. The code and trained models will be
+released upon publication.
+1. Introduction
+Ship re-identification (ReID) aims to identify the same ship
+across different images and is essential for maritime mon-
+itoring, tracking, and management.
+In maritime appli-
+cations, ship imagery is typically acquired in both opti-
+cal and synthetic aperture radar (SAR) modalities. SAR
+can capture high-resolution images under all-weather and
+day-night conditions, making it widely used for maritime
+*Corresponding author.
+Figure 1. Noise of SAR image (left). Modality gap and ID gap in
+feature space (right).
+surveillance. However, SAR images contain speckle noise
+and radar-specific textures, which challenge conventional
+feature extraction and matching. To address these issues,
+cross-modal ship ReID between optical and SAR imagery
+has recently emerged as a crucial task, aiming to match
+ships across heterogeneous sensors while bridging the large
+modality gap.
+In recent years, although several works
+[6, 26, 30, 45, 52] have provided valuable insights and
+achieved notable progress on this task, two major chal-
+lenges still remain.
+In cross-modal retrieval, the fundamental difference
+between optical and SAR imaging mechanisms leads to
+feature misalignment and a large modality gap. In re-
+cent years, numerous efforts have been devoted to address-
+ing this challenge. RQ-Net [3] constructs a robust quadratic
+network and a reconsider loss to match features from op-
+tical and SAR modalities. DEN [9] designs a new fusion
+network structure called dual-encoder net to capture the de-
+tailed information and reduce the impact of modal differ-
+ences. GaLD [40] introduces a cross-modal Gaussian local-
+ization distillation strategy to align the angle information
+between optical and SAR images. NSCF [51] develops a
+content-filtering module to adaptively suppress regions that
+are difficult to align and enhance both coarse- and fine-
+1
+arXiv:2512.03404v1  [cs.CV]  3 Dec 2025
+
+=== PAGE 2 ===
+grained features. RSENet [32] proposes a rotation and scale
+equivariant network to enforce model to accurately learn the
+information from two modalities. Despite these advances,
+most existing approaches rely on deep networks to implic-
+itly learn high-dimensional feature representations, placing
+substantial demands on model capacity. To address this is-
+sue, we address this challenge by introducing Cross-modal
+Data Generation and Feature fusion (CDGF), a framework
+that synthesizes cross-modal samples and performs feature
+fusion across modalities. CDGF bridges the gap between
+optical and SAR imagery from both data and feature per-
+spectives.
+In mixed-modality retrieval, modality differences
+frequently dominate identity differences, causing the
+model to favor same-modality samples, even if incorrect,
+while overlooking correct cross-modal matches. SAPS
+[47] proposes a supervised alignment perception strategy to
+rectify spatial biases existing in SAR images and a modality
+difference selection module to compensate for the missing
+information in the optical images. Feng et al. [7] addresses
+the cognitive gap of CNNs between optical and SAR images
+by leveraging multi-order interactions to measure their rep-
+resentation capacity. Building upon prior research, we ob-
+serve that the imaging mechanism of SAR inherently pro-
+duces coherent speckle noise during the imaging process,
+which introduces significant interference in feature extrac-
+tion. The left half of Fig. 1 illustrates the noise of SAR
+image. As the model ranks gallery samples by Euclidean or
+cosine distance during inference, it tends to focus on same-
+modality matches, as illustrated in the right part of Fig. 1,
+limiting cross-modal generalization in real-world scenarios.
+To tackle this challenge, we propose a Modality-Consistent
+Representation Learning (MCRL) strategy, which denoises
+SAR images and incorporates a modality distance regular-
+ization term to further mitigate the modality gap, ultimately
+enhancing cross-modal recognition performance.
+In summary, our main contributions are as follows:
+• We propose a novel framework MOS for cross-modal
+ship re-identification, which can accurately denoise SAR
+images and significantly mitigate optical-SAR modality
+gap throughout both the training and inference phases.
+• We design a Modality-Consistent Representation Learn-
+ing (MCRL) strategy that can remove the inherent noise
+in SAR images and reduce the modal distance through
+our proposed class-wise modality alignment loss.
+• We construct a Cross-modal Data Generation and Feature
+Fusion (CDGF) method to synthesize cross-modal sam-
+ples and fuse their features with the original features dur-
+ing inference.
+• Extensive experiments on the HOSS ReID dataset show
+our MOS achieves superior results, significantly surpass-
+ing SOTA methods. Detailed ablation studies further val-
+idate the exceptional benefits of our modules.
+2. Related work
+2.1. Ship Re-identification
+Ship re-identification (ReID) [11, 26, 34, 45, 52, 59] aims to
+match the same ship across non-overlapping cameras or het-
+erogeneous sensors, which is essential for maritime surveil-
+lance and vessel tracking. While person and vehicle ReID
+[10, 15, 18, 27–29, 36, 42, 46, 49, 50, 56] have achieved
+remarkable progress through large-scale datasets and ad-
+vanced deep feature learning, ship ReID remains far less
+explored due to the unique challenges of maritime environ-
+ments. Liu et al. [26] introduces a ship ReID dataset called
+ShipReID-2400 from a real-world intelligent waterway traf-
+fic monitorin system and a simple but strong baseline called
+D2InterNet to extract discriminative local features. Qiao et
+al. [34] creates an large-scale vessel retrieval dataset named
+VesselID-539 and describs a fusion-based multi-view archi-
+tecture to combine global and fine-grained local feature.
+Zwemer et al. [59] introduces a new Vessel-reID dataset
+and a multi-level contrastive learning method to deal with
+the challenges of positive sample selection in unsupervised
+training. Qian et al. [52] developes a multi-level contrastive
+learning framework for ship ReID and incorporate a novel
+contrastive loss for training. Xu et al. [45] construct the new
+dataset called CMShipReID, which contains visible light,
+near-infrared, and thermal infrared modalities collected by
+autonomous aerial vehicle.
+For ship Re-identification under the optical–SAR modal-
+ity, related work remains scarce. To the best of our knowl-
+edge, only two works [6, 41] have specifically addressed
+this task to date. Wang et al. [41] pioneers this task by pre-
+senting the first dataset called HOSS ReID and proposes
+a baseline method, TransOSS, which is built on the Vi-
+sion Transformer architecture. Fan et al. [6] constructs a
+comprehensive ship ReID dataset, SMART-Ship, covering
+five modalities: visible light, SAR, panchromatic, multi-
+spectral, and near-infrared. Since the latter has not been
+publicly released, we adopt TransOSS [41] as the baseline
+and enhance it with our proposed MOS, achieving improved
+retrieval performance.
+2.2. Data generation and feature fusion
+With the rapid development of generative models [4, 12,
+14, 20, 24, 35], image generation and translation have
+become increasingly important tasks in computer vision.
+These techniques enable the synthesis of new images,
+cross-domain translation, and augmentation of underrepre-
+sented modalities, providing effective solutions for bridg-
+ing modality gaps. Yuan et al. [49] proposes a feature cen-
+tralization framework for person ReID, aggregating same-
+identity features generated by a stable diffusion model to
+enhance identity representation stability. Siddiqui et al. [37]
+constructs a data expansion framework called DLCR to syn-
+2
+
+=== PAGE 3 ===
+thesize cloth-changing person ReID data via diffusion and
+large language models, and introduces strategies to progres-
+sive learning these generated data to obtain more robust
+feature representation. Wu et al. [44] introduces a novel
+cross-domain attention GAN network for optical-to-SAR
+image translation and utilize the generated samples can ob-
+tain higher performance. Ma et al. [31] introduce a method
+for multimodal cluster analysis by fusing embeddings ob-
+tained from a variational autoencoder [22]. The aforemen-
+tioned works provide valuable insights into feature fusion
+from various domains and perspectives. At the same time,
+a lot of works[1, 13, 16, 55] have been dedicated to tack-
+ling the problem of optical-to-SAR image translation. He
+et al. [16] proposes DOGAN, a distillation with no labels-
+based optical-prior driven generative adversarial network,
+to transfer SAR images to optical modality. Wang et al. [43]
+utilize denoising diffusion implicit model [38] to generate
+inverse SAR images from the synthesized optical counter-
+parts. Inspired by the aforementioned works, we employ a
+Brownian Bridge diffusion model [23] during inference to
+generate SAR samples from optical inputs. Both the origi-
+nal and generated samples are fed into the model to extract
+high-dimensional features, which are then fused to produce
+modality-complementary representations, thereby improv-
+ing cross-modal retrieval accuracy.
+3. Methodology
+3.1. Overview
+The optical–SAR ship ReID dataset is denoted as D =
+{(Ii, yi, mi)}N
+i=1, where Ii represents the i-th ship im-
+age, yi ∈{1, . . . , C} denotes the ship identity label, and
+mi ∈{opt, sar} indicates the modality, i.e., optical or SAR.
+The dataset is split into disjoint training and testing subsets,
+Dtrain and Dtest, with non-overlapping identities. Each im-
+age I is transformed into a d-dimensional embedding vector
+through a feature extractor fθ(·) parameterized by θ:
+z = fθ(I) ∈Rd,
+(1)
+The goal of cross-modal ship ReID is to learn a modality-
+invariant embedding function fθ(·) that enables accurate re-
+trieval on the test set Dtest. Given a query image Iq and a
+gallery G = {Ig}, the retrieval target is defined as
+I∗
+g = arg min
+Ig∈G dist(fθ(Iq), fθ(Ig)),
+(2)
+where dist(·, ·) denotes a distance metric such as Euclidean
+or cosine distance. Ideally, the selected I∗
+g should share the
+same identity with the query Iq regardless of modality dif-
+ferences.
+To achieve this, the objective of the optical–SAR ship
+ReID task is to learn the optimal parameters θ∗of the fea-
+ture extractor fθ(·) that yield the highest recognition accu-
+racy on the test set. Formally,
+θ∗= arg max
+θ
+Acc
+ fθ; Dtest
+
+,
+(3)
+where Acc(·) denotes the overall identification accuracy
+across modalities.
+To better optimize the feature extractor and obtain a more
+discriminative parameter set θ, we propose a novel frame-
+work named MOS to Mitigate Optical-SAR modality gap.
+As illustrated in Fig. 2, MOS consists of two complemen-
+tary components: the Modality-Consistent Representation
+Learning (MCRL) module and the Cross-modal Dats Gen-
+eration and Feature fusion (CDGF) module. Specifically,
+MCRL focuses on aligning the feature distributions of dif-
+ferent modalities through a shared embedding space, while
+CDGF leverages a brownian bridge diffusion model to gen-
+erate cross-modal samples and fuse features of original and
+generated samples. Together, these two modules collabo-
+ratively enhance the model’s capability to learn modality-
+invariant yet identity-discriminative representations, thus
+improving optical–SAR ship ReID performance.
+3.2. Modality-consistent representation learning
+Optical and SAR images exhibit significant appearance dis-
+crepancies due to their inherently different imaging mech-
+anisms, leading to a large modality gap in feature space.
+Moreover, SAR images are often corrupted by coherent
+speckle noise, which further deteriorates the robustness of
+feature extraction.
+Denoise SAR image. Given a SAR sample (Ii, yi, sar),
+where the image Ii has spatial resolution H × W. We ob-
+serve that noise frequently occurs in areas with low pixel
+values, so we first arrange all pixels in ascending order:
+{p1, p2, . . . , pHW }sorted = sort
+ {Ii(m, n) |
+1 ≤m ≤H,
+1 ≤n ≤W}
+
+,
+(4)
+where Ii(m, n) denotes the pixel value at spatial position
+(m, n). To mitigate speckle noise in SAR images, the low-
+est α% of pixel values, which predominantly correspond to
+noise, are discarded. The remaining top (1−α)% pixel val-
+ues are subsequently linearly rescaled to the standard 8-bit
+range [0, 255]:
+ˆpk = 255(pk −pmin)
+pmax −pmin + ϵ,
+k ∈Kα
+(5)
+where pmin and pmax denote the minimum and maxi-
+mum pixel values among the retained subset, and Kα =
+Top1−α%({pi}sorted) denotes the indices of the top (1 −
+α%) percentile values in the {pi}sorted. ϵ is a small con-
+stant introduced for numerical stability, and ˆpk represents
+the denoised and rescaled pixel intensity.
+3
+
+=== PAGE 4 ===
+Figure 2. Overview of our proposed MOS. MOS consists of two parts: Modality-Consistent Representation Learning (MCRL) and Cross-
+modal Data Generation and Feature fusion (CDGF). MCRL performs effective noise suppression on SAR images and introduces a class-
+wise modality alignment loss to align the distributions of multi-modal samples sharing the same identity during training. CDGF, on the
+other hand, generates corresponding SAR samples from optical inputs during inference and fuses them with original features to further
+enhance retrieval performance.
+Class-wise Modality Alignment Loss. Although de-
+noising contributes to the acquisition of more precise fea-
+tures, a substantial modality gap still exists in the feature
+space due to the inherent differences between optical and
+SAR imaging mechanisms. To further mitigate modality
+gap, we introduce a class-wise modality alignment loss that
+constrains the class-wise feature alignment between modal-
+ities.
+For a batch of B samples {(Ii, yi, mi), i = 1, . . . , B}
+with feature embeddings F = {f1, f2, . . . , fB}, our goal is
+to aggregate samples with the same ID and separate sam-
+ples with different IDs. Consider the class-conditional fea-
+ture distributions for a given identity c under the optical and
+SAR modalities: pc
+opt,
+pc
+sar. Under the Gaussian approx-
+imation pc
+opt = N(µc
+opt, Σc
+opt) and pc
+sar = N(µc
+sar, Σc
+sar),
+the squared Wasserstein-2 distance admits a closed form:
+W 2
+2
+ pc
+opt, pc
+sar
+
+=
+µc
+opt −µc
+sar
+2
+2
++ Tr
+
+Σc
+opt + Σc
+sar −2
+ Σc 1/2
+opt Σc
+sarΣc 1/2
+opt
+1/2
+.
+(6)
+The first term quantifies the disparity between the means
+of the two modalities, while the second term measures the
+divergence of their covariances. Directly minimizing the
+covariance term in Eq. (6) requires matrix square roots and
+is computationally expensive. At the same time, it is noted
+that in high-dimensional feature spaces, off-diagonal corre-
+lations between different feature dimensions are often weak
+or noisy.
+Under the diagonal-covariance approximation
+Σc
+· ≈diag((σc
+· )2), the covariance contribution in Eq. (6)
+simplifies to the squared Euclidean distance between per-
+dimension standard deviations:
+Tr
+
+Σc
+opt + Σc
+sar −2(Σc 1/2
+opt Σc
+sarΣc 1/2
+opt )1/2
+≈∥σc
+opt −σc
+sar∥2
+2,
+(7)
+where σc
+· =
+p
+diag(Σc· ) denotes the per-dimension stan-
+dard deviation vector. Empirically, such diagonal approx-
+imations have been shown to retain most of the alignment
+effect of the full Wasserstein-2 distance in high-dimensional
+embeddings while providing a robust and tractable regular-
+4
+
+=== PAGE 5 ===
+ization term.
+For each identity c, we define the subsets of samples
+from the optical and SAR modalities as
+Oc = {(Ii, yi, mi) | yi = c, mi = opt},
+Sc = {(Ii, yi, mi) | yi = c, mi = sar}.
+(8)
+We only consider the identities that appear in both modali-
+ties, forming the valid identity set
+C = {c | |Oc| > 0 and |Sc| > 0}.
+(9)
+For each identity c ∈C, the class-wise mean vectors and
+element-wise variances are computed as
+µc
+opt =
+1
+|Oc|
+X
+(Ii,yi,mi)∈Oc
+fi,
+µc
+sar =
+1
+|Sc|
+X
+(Ii,yi,mi)∈Sc
+fi,
+(10)
+varc
+opt =
+1
+|Oc|
+X
+(Ii,yi,mi)∈Oc
+(fi −µc
+opt) ⊙(fi −µc
+opt),
+varc
+sar =
+1
+|Sc|
+X
+(Ii,yi,mi)∈Sc
+(fi −µc
+sar) ⊙(fi −µc
+sar),
+(11)
+where ⊙denotes element-wise multiplication.
+Based on these statistics, the class-wise modality align-
+ment loss is formulated as
+LCMAL = 1
+|C|
+X
+c∈C
+
+∥µc
+opt −µc
+sar∥2
+2
++ ∥varc
+opt −varc
+sar∥2
+2
+
+,
+(12)
+The first term in Eq. (12) minimizes the distance between
+the optical and SAR class centroids and reducs the modality
+gap at the class level. The second term encourages consis-
+tency in the intra-class feature dispersions between modali-
+ties. Together, these two components provide a tractable ap-
+proximation of the Wasserstein-2 distance, enforcing both
+mean and variance consistency in the embedding space.
+Overall loss function.
+The proposed CMAL can be
+jointly optimized with standard identity classification and
+triplet losses:
+L = λidLID + λtriLTriplet + λcmalLCMAL,
+(13)
+where Lid denotes the standard identity cross-entropy loss,
+Ltri represents the triplet loss [19] that enforces relative
+feature distances, and LCMAL is the proposed CMAL that
+minimizes the feature discrepancy between optical and SAR
+modalities. Following the baseline TransOSS [41] configu-
+ration, we set λid = λtri = 1.
+3.3. Cross-modal data generation and feature fusion
+To further reduce the modality gap, we train a Brownian
+Bridge Diffusion Model (BBDM) [23] to generate corre-
+sponding SAR images from the optical samples, and then
+fuse the features of both modalities for enhanced represen-
+tation.
+Following the BBDM formulation, we denote x0 ∼
+pSAR(x) as a latent feature of a SAR sample, and y ∼
+popt(y) as its corresponding optical feature. The forward
+process gradually transforms x0 into y through a Brownian
+bridge:
+q(xt | x0, y) = N
+
+xt; (1 −mt)x0 + mty, δtI
+
+,
+mt = t
+T , δt = 2(mt −m2
+t)
+(14)
+where xt denotes the noisy intermediate state at time t, con-
+ditioned on the endpoint y.
+The reverse process predicts xt−1 from xt and y to grad-
+ually recover x0:
+pθ(xt−1 | xt, y) = N
+
+xt−1; µθ(xt, t, y), ˆδtI
+
+,
+(15)
+where µθ(xt, t, y) is the predicted mean value of the noise,
+and ˆδt is the variance on noise at each step, and θ represents
+the model parameters.
+The model is trained to predict the injected noise ϵ in the
+forward process. Specifically, given xt = (1 −mt)x0 +
+mty + √δtϵ with ϵ ∼N(0, I), we minimize the denoising
+objective:
+Ldiff = Ex0,y,t,ϵ
+hϵ −ϵθ(xt, t, y)
+2i
+,
+(16)
+where ϵθ(·) is a neural network that estimates the noise
+given the noisy input xt, time step t, and target optical fea-
+ture y.
+At inference, for a given optical sample (Ii, yi, opt),
+we
+generate
+K
+diverse
+pseudo-SAR
+samples
+{(ˆIk
+i , yi, sar)}K
+k=1.
+This enables the model to capture
+multiple plausible SAR representations corresponding to
+the same optical input, accounting for modality ambigu-
+ity and scene variability.
+Each generated pseudo-SAR
+image ˆIk
+i
+and the original optical image Ii is passed
+through the shared backbone network in Sec. 3.2, yielding
+d-dimensional features: f i
+opt and f i,k
+pseudo-sar, k = 1, . . . , K.
+The final fused representation is obtained by aggregat-
+ing the optical feature with the ensemble of generated SAR
+features through a weighted combination:
+f i
+fused =
+(1 −τ) f i
+opt + τ
+
+1
+K
+PK
+k=1 f i,k
+pseudo-sar
+
+(1 −τ) f i
+opt + τ
+
+1
+K
+PK
+k=1 f i,k
+pseudo-sar
+
+2
+, (17)
+5
+
+=== PAGE 6 ===
+Table 1. Comparisons between the proposed MOS and some state-of-the-art methods on the HOSS ReID datasets. Bold values indicate
+the best performance, and the second-best results are underlined.
+Task type
+Method
+Venue
+ALL to ALL
+Optical to SAR
+SAR to Optical
+mAP
+R1
+R5
+R10 mAP
+R1
+R5
+R10 mAP
+R1
+R5
+R10
+General vision methods
+ViT-base [5]
+Arxiv 2020
+43.0 56.2 64.8 69.9 21.5 12.3 33.8 55.4 17.9 10.4 25.4 32.8
+-
+DeiT-base [39]
+ICML 2021
+47.2 58.1 69.6 74.1 25.9 16.1 36.7 59.1 26.1 10.3 35.7 52.0
+Single modality ReID methods
+AGW [48]
+TPAMI 2021
+43.6 57.4 64.2 68.8 17.2
+7.7
+29.2 38.5 21.1 14.9 34.3 46.3
+TransReID [17]
+ICCV 2021
+48.1 60.8 69.3 73.9 27.3 18.5 40.0 58.5 20.9 11.9 34.3 43.3
+Person ReID
+SOLIDER [2]
+CVPR 2023
+38.2 50.6 63.1 69.9 23.1 12.3 38.5 52.3 14.6 10.4 16.4 31.3
+Ship ReID
+D2InterNet [26]
+SIGIR 2025
+50.2 59.1 71.6 79.0 33.0 21.5 41.5 69.8 28.8 25.4 38.8 50.7
+Cross-modal ReID methods
+CM-NAS[8]
+CVPR 2021
+30.7 46.0 54.6 57.4
+8.2
+1.5
+10.8 21.5
+7.6
+4.5
+11.9 19.4
+LbA [33]
+CVPR 2021
+33.0 48.3 59.7 62.5 11.9
+4.6
+23.1 41.5
+8.5
+6.0
+14.9 22.4
+DEEN [53]
+CVPR 2023
+43.8 58.5 64.2 66.5 31.3 21.5 44.6 60.0 27.4 22.4 40.3 53.7
+MCJA [25]
+TCSVT 2024 47.1 59.1 67.9 73.0 18.6 10.8 27.7 38.5 19.7 14.9 28.3 43.3
+VersReID [57]
+TPAMI 2024
+49.3 59.7 70.5 78.4 25.7 13.8 40.0 61.5 27.7 17.9 44.8 61.2
+AMML [54]
+IJCV 2025
+31.2 43.8 52.8 56.8
+9.1
+4.6
+10.8 21.5
+9.2
+4.5
+13.4 20.9
+Visible-Infrared
+person ReID
+HSFLNet [58]
+EAAI 2025
+22.8 29.0 44.9 52.3 19.0 13.9 24.6 32.3 19.2 19.4 26.9 46.3
+TransOSS [41]
+ICCV 2025
+57.4 65.9 79.5 85.8 48.9 33.8 67.7 80.0 38.7 29.9 59.7 71.6
+Optical-SAR
+ship ReID
+MOS(ours)
+-
+60.4 68.8 83.5 88.7 51.4 40.0 70.8 75.4 48.7 46.3 68.7 79.1
+Table 2.
+Detailed information about the test set HOSS ReID
+datasets
+Protocol
+Query images
+Gallery images
+Optical SAR
+All
+Optical SAR
+All
+All to ALL
+88
+88
+176
+403
+190
+593
+Optical to SAR
+65
+0
+65
+0
+190
+190
+SAR to Optical
+0
+67
+67
+403
+0
+403
+where τ ∈[0, 1] controls the relative importance of the
+generated SAR ensemble. This weighting scheme allows
+the model to adaptively balance between the reliable but
+modality-specific optical feature and the diverse but poten-
+tially noisy synthetic SAR features. In our experiments,
+we set K = 5 and treat τ as a hyperparameter, selecting
+its value on the validation set to optimize retrieval perfor-
+mance.
+4. Experiments
+4.1. Dataset and metrics
+To the best of our knowledge, there exists only a single
+publicly accessible dataset, namely HOSS ReID [41], for
+optical-SAR ship reID. Its training set contains 1,063 im-
+ages, including 574 in optical modality and 489 in SAR
+modality. Detailed information test set about HOSS ReID
+is shown in Tab. 2. We evaluate all methods using stan-
+dard retrieval metrics: mean Average Precision (mAP), and
+Rank-{1, 5, 10} accuracy (R1, R5, R10).
+4.2. Implementation details
+We adopt TransOSS [41] as our baseline and follow its de-
+fault configuration, using a learning rate of 5 × 10−4 and
+batch size of 32, and setting both λid and λtri to 1.0. For
+MCRL, we train the model for 100 epochs, setting α = 5.0
+to strengthen the SAR image denoising process and scaling
+λcmal to 2.0 to balance the optimization across loss terms.
+For CDGF, we pre-train the BBDM generator [23] for
+100 epochs on the QXS-SAROPT dataset [21], then fine-
+tune it for an additional 250 epochs on the HOSS ReID
+training set [41]. Given the limited size of the HOSS ReID
+training set, we apply data augmentation by horizontally
+and vertically flipping a subset of optical and SAR sam-
+ples to increase diversity and improve model generalization.
+During inference, the fusion weight τ is set to 0.2 to prior-
+itize the real optical features while incorporating comple-
+mentary structural information from the generated pseudo-
+SAR samples. All experiments are conducted on a single
+NVIDIA A100-SXM4-80GB GPU.
+4.3. Comparison with state-of-the-art methods
+To the best of our knowledge, optical–SAR cross-modal
+ship ReID remains an emerging and underexplored task,
+with few open-source methods [41] tailored for this domain.
+Therefore, we evaluate several state-of-the-art person ReID
+6
+
+=== PAGE 7 ===
+Table 3. Ablation study on the HOSS ReID dataset. Bold values
+indicate the best performance. ”O to S” means ”Optical to SAR”
+and ”S to O” means ”SAR to Optical”.
+MCRL CDGF
+ALL to ALL
+O to S
+S to O
+mAP
+R1
+mAP
+R1
+mAP
+R1
+✗
+✗
+57.4
+65.9
+48.9
+33.8
+38.7
+29.9
+✓
+✗
+59.3
+68.2
+50.3
+38.5
+45.9
+40.3
+✗
+✓
+58.1
+66.5
+49.7
+36.9
+38.6
+32.8
+✓
+✓
+60.4
+68.8
+51.4
+40.0
+48.7
+46.3
+Figure 3. R1 heatmap based on α and λcmal in SAR to Optical
+protocol.
+approaches on the HOSS ReID dataset.
+The results are
+summarized in Tab. 1, where “ALL to ALL” denotes mixed-
+modality retrieval, “Optical to SAR” represents optical-to-
+SAR retrieval, and “SAR to Optical” indicates the reverse.
+We divide the compared methods into three categories:
+general vision methods, single-modality ReID methods,
+and cross-modal ReID methods. Experimental results show
+that visible–infrared ReID methods [8, 25, 33, 53, 54, 57,
+58] perform the worst across all protocols, mainly due to
+the inherent discrepancy between infrared and SAR imag-
+ing mechanisms. Their architectures, originally optimized
+for infrared feature extraction, fail to capture discrimina-
+tive representations from SAR data. In contrast, ship ReID
+methods [26, 41] outperform person ReID methods [2, 17],
+as they better model the structural and appearance char-
+acteristics of ships. Excluding our proposed MOS, Tran-
+sOSS [41] attains the highest performance among exist-
+ing methods, benefiting from its task-specific design tai-
+lored for HOSS ReID. More importantly, MOS consistently
+outperforms TransOSS [41] across all protocols. In ALL
+to ALL protocol, MOS achieves 60.4% mAP (+3.0%) and
+68.8% R1 (+2.9%); in Optical to SAR protocol, 51.4% mAP
+(+2.5%) and 40.0% R1 (+6.2%); and in SAR to Optical
+protocol, 48.7% mAP (+10.0%) and 46.3% R1 (+16.4%),
+demonstrating superior generalization and modality bridg-
+ing.
+Figure 4. Visualization of relationship of τ and R1 in different
+evaluation protocols.
+4.4. Ablation study
+We conduct an ablation study on the HOSS ReID dataset to
+evaluate the proposed MCRL and CDGF modules, with re-
+sults summarized in Tab. 3. The addition of MCRL boosts
+performance by +1.9% mAP and +2.3% R1, yielding sub-
+stantial improvements in the challenging SAR to Optical
+protocol: +7.2% mAP and +10.4% R1. This confirms that
+MCRL effectively reduces the modality gap during train-
+ing by enforcing modality-consistent feature learning. In
+contrast, CDGF alone yields only marginal improvements,
+as its inference-time feature fusion relies on a well-aligned
+embedding space. Without MCRL to regularize the back-
+bone, the large cross-modal discrepancy limits its effec-
+tiveness. When both modules are combined, we achieve
+the best performance: +3.0% and +2.9% in ALL to ALL,
++2.5% mAP and +6.2% R1 in Optical to SAR, and +10.0%
+mAP and +16.4% R1 in SAR to Optical protocol. The re-
+sults demonstrate that MCRL and CDGF are complemen-
+tary: MCRL establishes a robust, aligned feature space dur-
+ing training, while CDGF enhances inference-time consis-
+tency through cross-modal feature fusion. This two-stage
+alignment, combining early regularization with late fusion,
+proves particularly effective for extreme modality shifts.
+4.5. Hyperparameter sensitivity analysis
+We fix τ = 0.2 and analyze the effect of α and λcmal in
+SAR to Optical protocol (other protocols in supplementary
+material). As shown in Fig. 3, the optimal performance is
+achieved when α = 5.0 and λcmal = 2.0 across all pro-
+tocols. When α is too small, noise is insufficiently sup-
+pressed, leading to corrupted feature learning; when α is too
+large, valuable semantic pixels are over-removed, degrading
+the quality of clean pseudo-labels. Similarly, extreme val-
+ues of λcmal disrupt the balance between the classification
+and alignment losses, causing performance degradation.
+We fix all other hyperparameters to the values set in
+Sec. 4.2, while analyzing the effect of τ across different
+evaluation protocols. As shown in Fig. 4, all three proto-
+7
+
+=== PAGE 8 ===
+Figure 5. Visualization of top-5 retrieval results in ALL to ALL, Optical to SAR and SAR to Optical protocols. Blue borders indicate correct
+search results, while red borders denote errors.
+cols achieve near-optimal performance when τ = 0.2, with
+R1 scores reaching or closely approaching their maximum
+values. This suggests that τ = 0.2 provides an effective
+balance for feature fusion. Based on this observation, we
+adopt τ = 0.2 as the default value in all experiments.
+4.6. Visualization
+We present qualitative top-5 retrieval results in Fig. 5 to il-
+lustrate the effectiveness of our MOS framework. Each row
+displays the top-5 retrieved samples for a given query, with
+blue borders indicating correct matches and red borders de-
+noting incorrect ones.
+MOS demonstrates significantly improved retrieval per-
+formance compared to the baseline. For instance, as shown
+in (c), when the baseline fails to retrieve the correct match
+within the top-5 results, MOS successfully ranks the correct
+sample at the first position. In (d), MOS advances the rank-
+ing of correct matches compared to the baseline, leading
+to improved retrieval performance. In (f), while the base-
+line retrieves the correct match only at the third position,
+MOS successfully recovers all three correct samples from
+the gallery, ranked at positions one, two, and four (although
+these three sample are visually similar, they are distinct,
+e.g., slight differences in viewing angle or imaging condi-
+tions), demonstrating MOS’s superior recall and robustness
+in challenging cross-modal matching.
+Moreover, in the ALL to ALL setting, MOS overcomes
+the baseline’s tendency to retrieve samples from only a sin-
+gle modality due to large cross-modal discrepancies. In-
+stead, MOS enables flexible and balanced retrieval across
+both two modalities. As demonstrated in (a) and (d), the
+retrieved results exhibit a well-mixed distribution of modal-
+ities, with the top-ranked matches (first and second po-
+sitions) coming from different modalities but sharing the
+same identity, indicating that MOS achieves true cross-
+modal generalization without bias toward either modality.
+5. Conclusion
+In this paper we propose MOS, a novel framework for
+Mitigating Optical-SAR modality gap for cross-modal
+ship ReID. At the core of MOS are two complementary
+modules: Modality-Consistency Representation Learning
+(MCRL) and Cross-Modal Data Generation and Feature
+fusion (CDGF). MCRL reduces the modality gap during
+training by aligning the modality distribution, while simul-
+taneously enhancing SAR feature quality through implicit
+denoising. CDGF further improves inference-time robust-
+ness by generating pseudo-SAR samples from optical in-
+puts and fusing their features with the original represen-
+tations, thereby promoting cross-modal consistency. Ex-
+tensive experiments on the HOSS ReID dataset, the only
+publicly available benchmark for this task, demonstrate that
+MOS achieves state-of-the-art performance, outperforming
+existing methods across all evaluation protocols.
+8
+
+=== PAGE 9 ===
+References
+[1] Xinyu Bai, Xinyang Pu, and Feng Xu. Conditional diffusion
+for sar to optical image translation. IEEE Geoscience and
+Remote Sensing Letters, 21:1–5, 2023. 3
+[2] Weihua Chen, Xianzhe Xu, Jian Jia, Hao Luo, Yaohua Wang,
+Fan Wang, Rong Jin, and Xiuyu Sun.
+Beyond appear-
+ance: a semantic controllable self-supervised learning frame-
+work for human-centric visual tasks.
+In Proceedings of
+the IEEE/CVF conference on computer vision and pattern
+recognition, pages 15050–15061, 2023. 6, 7
+[3] Zhong Chen, Xiaolei Zhang, Xueru Xu, Hanruo Chen, Xi-
+aofei Mi, and Jian Yang. Registration-aware cross-modal in-
+teraction network for optical and sar images. Information
+Fusion, page 103278, 2025. 1
+[4] Florinel-Alin Croitoru, Vlad Hondru, Radu Tudor Ionescu,
+and Mubarak Shah. Diffusion models in vision: A survey.
+IEEE transactions on pattern analysis and machine intelli-
+gence, 45(9):10850–10869, 2023. 2
+[5] Alexey Dosovitskiy.
+An image is worth 16x16 words:
+Transformers for image recognition at scale. arXiv preprint
+arXiv:2010.11929, 2020. 6
+[6] Chen-Chen Fan, Peiyao Guo, Linping Zhang, Kehan Qi,
+Haolin Huang, Yong-Qiang Mao, Yuxi Suo, Zhizhuo Jiang,
+Yu Liu, and You He. Smart-ship: A comprehensive synchro-
+nized multi-modal aligned remote sensing targets dataset
+and benchmark for berthed ships analysis. arXiv preprint
+arXiv:2508.02384, 2025. 1, 2
+[7] Zhenpeng Feng, Hongbing Ji, Miloˇs Dakovi´c, Mingzhe Zhu,
+and Ljubiˇsa Stankovi´c. Analytical interpretation of the gap
+of cnn’s cognition between sar and optical target recognition.
+Neural Networks, 165:982–986, 2023. 2
+[8] Chaoyou Fu, Yibo Hu, Xiang Wu, Hailin Shi, Tao Mei, and
+Ran He. Cm-nas: Cross-modality neural architecture search
+for visible-infrared person re-identification. In Proceedings
+of the IEEE/CVF international conference on computer vi-
+sion, pages 11823–11832, 2021. 6, 7
+[9] Gui Gao, Meixiang Wang, Xi Zhang, and Gaosheng Li. Den:
+A new method for sar and optical image fusion and intelli-
+gent classification. IEEE Transactions on Geoscience and
+Remote Sensing, 2024. 1
+[10] Zan Gao, Shengxun Wei, Weili Guan, Lei Zhu, Meng Wang,
+and Shengyong Chen. Identity-guided collaborative learning
+for cloth-changing person reidentification. IEEE Transac-
+tions on Pattern Analysis and Machine Intelligence, 46(5):
+2819–2837, 2023. 2
+[11] Amir Ghahremani, Yitian Kong, Egor Bondarev, and Pe-
+ter HN de With.
+Towards parameter-optimized vessel re-
+identification based on iornet. In International Conference
+on Computational Science, pages 125–136. Springer, 2019.
+2
+[12] Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing
+Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville, and
+Yoshua Bengio. Generative adversarial networks. Commu-
+nications of the ACM, 63(11):139–144, 2020. 2
+[13] Zhe Guo, Rui Luo, Qinglin Cai, Jiayi Liu, Zhibo Zhang, and
+Shaohui Mei. Scene embedded generative adversarial net-
+works for semi-supervised sar-to-optical image translation.
+IEEE Geoscience and Remote Sensing Letters, 2024. 3
+[14] Nikita Gushchin, Daniil Selikhanovych, Sergei Kholkin,
+Evgeny Burnaev, and Aleksandr Korotin.
+Adversarial
+schr¨odinger bridge matching. Advances in Neural Informa-
+tion Processing Systems, 37:89612–89651, 2024. 2
+[15] Chengrui Hao, Boyu Wang, Chunlei Peng, Decheng Liu,
+Nannan Wang, Ruimin Hu, and Xinbo Gao. Masked text ad-
+versarial training for cloth-changing person re-identification.
+IEEE Transactions on Information Forensics and Security,
+2025. 2
+[16] Jingfei He, Liang Chen, Hao Shi, Yuhang Chen, Jingyi Yang,
+and Wei Li. Dogan: Dino-based optical-prior-driven gan for
+sar-to-optical image translation. IEEE Transactions on Geo-
+science and Remote Sensing, 2025. 3
+[17] Shuting He, Hao Luo, Pichao Wang, Fan Wang, Hao Li,
+and Wei Jiang.
+Transreid: Transformer-based object re-
+identification. In Proceedings of the IEEE/CVF international
+conference on computer vision, pages 15013–15022, 2021.
+6, 7
+[18] Weizhen He, Yiheng Deng, Shixiang Tang, Qihao Chen,
+Qingsong Xie, Yizhou Wang, Lei Bai, Feng Zhu, Rui Zhao,
+Wanli Ouyang, et al. Instruct-reid: A multi-purpose person
+re-identification task with instructions.
+In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 17521–17531, 2024. 2
+[19] Alexander Hermans, Lucas Beyer, and Bastian Leibe. In de-
+fense of the triplet loss for person re-identification. arXiv
+preprint arXiv:1703.07737, 2017. 5
+[20] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising dif-
+fusion probabilistic models. Advances in neural information
+processing systems, 33:6840–6851, 2020. 2
+[21] Meiyu Huang, Yao Xu, Lixin Qian, Weili Shi, Yaqin Zhang,
+Wei Bao, Nan Wang, Xuejiao Liu, and Xueshuang Xiang.
+The qxs-saropt dataset for deep learning in sar-optical data
+fusion. arXiv preprint arXiv:2103.08259, 2021. 6
+[22] Diederik P Kingma and Max Welling. Auto-encoding varia-
+tional bayes. arXiv preprint arXiv:1312.6114, 2013. 3
+[23] Bo Li, Kaitao Xue, Bin Liu, and Yu-Kun Lai. Bbdm: Image-
+to-image translation with brownian bridge diffusion models.
+In Proceedings of the IEEE/CVF conference on computer vi-
+sion and pattern Recognition, pages 1952–1961, 2023. 3, 5,
+6
+[24] Zijie Li, Henry Li, Yichun Shi, Amir Barati Farimani, Yu-
+val Kluger, Linjie Yang, and Peng Wang. Dual diffusion for
+unified image generation and understanding. In Proceedings
+of the Computer Vision and Pattern Recognition Conference,
+pages 2779–2790, 2025. 2
+[25] Tengfei Liang, Yi Jin, Wu Liu, Tao Wang, Songhe Feng, and
+Yidong Li.
+Bridging the gap: Multi-level cross-modality
+joint alignment for visible-infrared person re-identification.
+IEEE Transactions on Circuits and Systems for Video Tech-
+nology, 34(8):7683–7698, 2024. 6, 7
+[26] Baolong Liu, Roukai Huang, Xin Pan, Chuanhuang Li, Jie
+Sun, Jianfeng Dong, and Xun Wang.
+Advancing ship re-
+identification in the wild: The shipreid-2400 benchmark
+dataset and d2internet baseline method. In Proceedings of
+9
+
+=== PAGE 10 ===
+the 48th International ACM SIGIR Conference on Research
+and Development in Information Retrieval, pages 106–115,
+2025. 1, 2, 6, 7
+[27] Delong Liu, Haiwen Li, Zhaohui Hou, Zhicheng Zhao, Fei
+Su, and Yuan Dong.
+Automatic synthetic data and fine-
+grained adaptive feature alignment for composed person re-
+trieval. In The Thirty-ninth Annual Conference on Neural
+Information Processing Systems, 2025. 2
+[28] Hankun Liu, Yujian Zhao, and Guanglin Niu. Try harder:
+Hard sample generation and learning for cloth-changing per-
+son re-id.
+In Proceedings of the 33rd ACM International
+Conference on Multimedia, pages 1704–1713, 2025.
+[29] Zanwu Liu, Chao Yuan, Bo Li, Xiaowei Zhang, and Guan-
+glin Niu. Looking alike from far to near: Enhancing cross-
+resolution re-identification via feature vector panning. arXiv
+preprint arXiv:2510.00936, 2025. 2
+[30] Zhi Lu, Liguo Sun, Pin Lv, Jiuwu Hao, Bo Tang, and Xu-
+anzhen Chen. A new large-scale dataset for marine vessel
+re-identification based on swin transformer network in ocean
+surveillance scenario. IET Computer Vision, 19(1):e70007,
+2025. 1
+[31] Yuanchi Ma, Hui He, Gang Zhang, and Zhendong Niu. Mul-
+timodal nonparametric clustering via monte carlo method
+and fusion embedding generated by variational autoencoder.
+Information Fusion, page 103612, 2025. 3
+[32] Han Nie, Bin Luo, Jun Liu, Zhitao Fu, Weixing Liu, Chenjie
+Wang, and Xin Su. A novel rotation and scale equivariant
+network for optical-sar image matching. IEEE Transactions
+on Geoscience and Remote Sensing, 2024. 2
+[33] Hyunjong Park, Sanghoon Lee, Junghyup Lee, and Bum-
+sub Ham. Learning by aligning: Visible-infrared person re-
+identification using cross-modal correspondences. In Pro-
+ceedings of the IEEE/CVF international conference on com-
+puter vision, pages 12046–12055, 2021. 6, 7
+[34] Dalei Qiao, Guangzhong Liu, Feng Dong, She-Xiang Jiang,
+and Likun Dai. Marine vessel re-identification: A large-scale
+dataset and global-and-local fusion-based discriminative fea-
+ture learning. IEEE Access, 8:27744–27756, 2020. 2
+[35] Robin Rombach, Andreas Blattmann, Dominik Lorenz,
+Patrick Esser, and Bj¨orn Ommer.
+High-resolution image
+synthesis with latent diffusion models.
+In Proceedings of
+the IEEE/CVF conference on computer vision and pattern
+recognition, pages 10684–10695, 2022. 2
+[36] Hao Sheng, Shuai Wang, Haobo Chen, Da Yang, Yang
+Huang, Jiahao Shen, and Wei Ke.
+Discriminative feature
+learning with co-occurrence attention network for vehicle
+reid. IEEE transactions on circuits and systems for video
+technology, 34(5):3510–3522, 2023. 2
+[37] Nyle Siddiqui, Florinel Alin Croitoru, Gaurav Kumar Nayak,
+Radu Tudor Ionescu, and Mubarak Shah. Dlcr: A generative
+data expansion framework via diffusion for clothes-changing
+person re-id. In 2025 IEEE/CVF Winter Conference on Ap-
+plications of Computer Vision (WACV), pages 1608–1617.
+IEEE, 2025. 2
+[38] Jiaming
+Song,
+Chenlin
+Meng,
+and
+Stefano
+Ermon.
+Denoising diffusion implicit models.
+arXiv preprint
+arXiv:2010.02502, 2020. 3
+[39] Hugo Touvron, Matthieu Cord, Matthijs Douze, Francisco
+Massa, Alexandre Sablayrolles, and Herv´e J´egou. Training
+data-efficient image transformers & distillation through at-
+tention. In International conference on machine learning,
+pages 10347–10357. PMLR, 2021. 6
+[40] Chao Wang, Lei Luo, Wenxuan Fang, and Jian Yang. Cross-
+modal gaussian localization distillation for optical informa-
+tion guided sar object detection. In ICASSP 2025-2025 IEEE
+International Conference on Acoustics, Speech and Signal
+Processing (ICASSP), pages 1–5. IEEE, 2025. 1
+[41] Han Wang, Shengyang Li, Jian Yang, Yuxuan Liu, Yixuan
+Lv, and Zhuang Zhou. Cross-modal ship re-identification via
+optical and sar imagery: A novel dataset and method. arXiv
+preprint arXiv:2506.22027, 2025. 2, 5, 6, 7
+[42] Qizao Wang, Xuelin Qian, Bin Li, Xiangyang Xue, and Yan-
+wei Fu. Exploring fine-grained representation and recom-
+position for cloth-changing person re-identification. IEEE
+Transactions on Information Forensics and Security, 19:
+6280–6292, 2024. 2
+[43] Xinyi Wang, Huaizhang Liao, Zhixiong Yang, Tao Han, and
+Jingyuan Xia. Optical-isar image translation via denoising
+diffusion implicit model. In 2023 IEEE International Con-
+ference on Image Processing and Computer Applications
+(ICIPCA), pages 1437–1441. IEEE, 2023. 3
+[44] Baolong Wu, Haonan Wang, Cunle Zhang, and Jianlai Chen.
+Optical-to-sar translation based on cda-gan for high-quality
+training sample generation for ship detection in sar ampli-
+tude images. Remote Sensing, 16(16):3001, 2024. 3
+[45] Congan Xu, Long Gao, Yu Liu, Qi Zhang, Nan Su, Shaox-
+uan Zhang, Tianyu Li, and Xiaomei Zheng.
+Cmshipreid:
+A cross-modality ship dataset for the re-identification task.
+IEEE Journal of Selected Topics in Applied Earth Observa-
+tions and Remote Sensing, 2025. 1, 2
+[46] Haoxuan Xu, Bo Li, and Guanglin Niu.
+Identity-aware
+feature decoupling learning for clothing-change person re-
+identification.
+In ICASSP 2025-2025 IEEE International
+Conference on Acoustics, Speech and Signal Processing
+(ICASSP), pages 1–5. IEEE, 2025. 2
+[47] Kai Xu, Anling Wang, Zhou Zhu, Wei Ju, and Wenchao
+Huang. Supervised alignment perception and modality dif-
+ference selection enhanced sar-optical fusion for cloud re-
+moval. IEEE Transactions on Geoscience and Remote Sens-
+ing, 2025. 2
+[48] Mang Ye, Jianbing Shen, Gaojie Lin, Tao Xiang, Ling
+Shao, and Steven CH Hoi.
+Deep learning for person re-
+identification: A survey and outlook. IEEE transactions on
+pattern analysis and machine intelligence, 44(6):2872–2893,
+2021. 6
+[49] Chao Yuan, Guiwei Zhang, Changxiao Ma, Tianyi Zhang,
+and Guanglin Niu. From poses to identity: Training-free per-
+son re-identification via feature centralization. In Proceed-
+ings of the Computer Vision and Pattern Recognition Con-
+ference, pages 24409–24418, 2025. 2
+[50] Guangmiao Zeng, Rongjie Wang, Wanneng Yu, Anhui Lin,
+Huihui Li, and Yifan Shang. A transfer learning-based ap-
+proach to maritime warships re-identification. Engineering
+Applications of Artificial Intelligence, 125:106696, 2023. 2
+10
+
+=== PAGE 11 ===
+[51] Hong Zhang, Yuxin Yue, Haojie Li, Pan Liu, Yusheng Jia,
+Wei He, and Zhihui Wang. Shared contents alignment across
+multiple granularities for robust sar-optical image matching.
+Information Fusion, 106:102298, 2024. 1
+[52] Qian Zhang, Mingxin Zhang, Jinghe Liu, Xuanyu He, Ran
+Song, and Wei Zhang.
+Unsupervised maritime vessel re-
+identification with multi-level contrastive learning.
+IEEE
+Transactions on Intelligent Transportation Systems, 24(5):
+5406–5418, 2023. 1, 2
+[53] Yukang Zhang and Hanzi Wang. Diverse embedding expan-
+sion network and low-light cross-modality benchmark for
+visible-infrared person re-identification. In Proceedings of
+the IEEE/CVF conference on computer vision and pattern
+recognition, pages 2153–2162, 2023. 6, 7
+[54] Yukang Zhang, Yan Yan, Yang Lu, and Hanzi Wang. Adap-
+tive middle modality alignment learning for visible-infrared
+person re-identification. International Journal of Computer
+Vision, 133(4):2176–2196, 2025. 6, 7
+[55] Wenbo Zhao, Nana Jiang, Xiaoxin Liao, and Jubo Zhu. Hvt-
+cgan: Hybrid vision transformer cgan for sar-to-optical im-
+age translation. IEEE Transactions on Geoscience and Re-
+mote Sensing, 2024. 3
+[56] Yujian Zhao, Chengru Wu, Yinong Xu, Xuanzheng Du,
+Ruiyu Li, and Guanglin Niu. Ccup: A controllable synthetic
+data generation pipeline for pretraining cloth-changing per-
+son re-identification models.
+In 2025 IEEE International
+Conference on Multimedia and Expo (ICME), pages 1–6,
+2025. 2
+[57] Wei-Shi Zheng, Junkai Yan, and Yi-Xing Peng. A versa-
+tile framework for multi-scene person re-identification. IEEE
+Transactions on Pattern Analysis and Machine Intelligence,
+47(3):1362–1380, 2024. 6, 7
+[58] Jiacheng Zhu, Hongwei Ge, Yuxuan Liu, Chunguo Wu, and
+Jiulin Fan. Hypergraph-driven soft semantics flexible learn-
+ing for visible–infrared person re-identification. Engineering
+Applications of Artificial Intelligence, 158:111286, 2025. 6,
+7
+[59] Matthijs H Zwemer, Herman GJ Groot, Rob GJ Wijnhoven,
+Egor Bondarev, and Peter HN de With.
+Multi-camera
+vessel-speed enforcement by enhancing detection and re-
+identification techniques. Sensors, 21(14):4659, 2021. 2
+11
+
+=== PAGE 12 ===
+MOS: Mitigating Optical-SAR Modality Gap for Cross-Modal Ship
+Re-Identification
+Supplementary Material
+Figure 6. R1 heatmap based on α and λcmal in ALL to ALL proto-
+col.
+6. Wasserstein-2 distance
+The Wasserstein-2 distance (W2) is a fundamental metric
+from optimal transport that measures the minimal effort
+required to transform one probability distribution into an-
+other. For two distributions p and q defined on a metric
+space X, the W2 distance is given by:
+W2(p, q) =
+
+inf
+γ∈Γ(p,q) E(x,y)∼γ
+
+∥x −y∥2
+2
+1/2
+,
+(18)
+where Γ(p, q) denotes the set of couplings whose marginals
+are p and q. The infimum corresponds to the optimal trans-
+port plan that minimizes the quadratic transportation cost.
+A key advantage of W2 is that it admits a closed-form
+expression when both distributions are Gaussian. Let
+p = N(µ1, Σ1),
+q = N(µ2, Σ2),
+then the squared Wasserstein-2 distance is:
+W 2
+2 (p, q) = ∥µ1 −µ2∥2
+2
++ Tr
+
+Σ1 + Σ2 −2 (Σ1/2
+2
+Σ1Σ1/2
+2
+)1/2
+.
+(19)
+This formulation shows that W2 jointly aligns the
+means and covariances of the two distributions, providing
+a geometry-aware and numerically stable measurement of
+distributional discrepancy. Compared with KL divergence
+or simple ℓ2 matching, W2 remains finite for distributions
+with disjoint support and captures covariance differences
+naturally. These properties make it particularly effective for
+aligning Gaussian feature distributions in our method.
+7. Heatmap in other evaluation protocols
+Both heatmaps in Fig. 6 and Fig. 7 illustrate the sensitiv-
+ity of our method with respect to the hyper-parameters α
+Figure 7. R1 heatmap based on α and λcmal in Optical to SAR
+protocol.
+and λcmal under the ALL to ALL and Optical to SAR pro-
+tocols. Despite the differences in evaluation settings, the
+two heatmaps exhibit highly consistent trends: the optimal
+performance is achieved when α = 5.0 and λcmal = 2.0
+across all protocols.
+This consistency indicates that our
+cross-modal alignment strategy is robust and not overly sen-
+sitive to the choice of α and λcmal across different protocols.
+12

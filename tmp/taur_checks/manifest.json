@@ -1,0 +1,32 @@
+{
+  "modified": [
+    "config/defaults.py",
+    "datasets/bases.py",
+    "datasets/make_dataloader.py",
+    "model/backbones/vit_pytorch.py",
+    "model/make_model.py",
+    "processor/processor.py",
+    "solver/make_optimizer.py",
+    "solver/scheduler_factory.py"
+  ],
+  "added": [
+    "model/backbones/thermal_adapter.py",
+    "loss/taur_rank_loss.py",
+    "processor/taur_grad.py",
+    "datasets/sampler_camera.py",
+    "configs/TAUR.yml",
+    "tests/test_taur.py",
+    "tests/check_taur_ddp.py",
+    "docs/TAUR_IMPLEMENTATION.md",
+    "docs/TAUR_PAPER_REVIEW.md"
+  ],
+  "deleted": [],
+  "checks": {
+    "pytest": "12 passed",
+    "baseline_original_source": "exact equality",
+    "real_vit_input": "passed",
+    "full_synthetic_optimizer_step": "passed",
+    "real_ddp": "not verified: local Gloo initialization unsupported device",
+    "cuda_training": "not run: CPU only; no data/weights"
+  }
+}

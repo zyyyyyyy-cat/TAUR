@@ -1,0 +1,12 @@
+[
+  "tests/test_taur.py::test_adapter_routing_cls_bound_and_per_image_norm",
+  "tests/test_taur.py::test_backbone_layers_and_disabled_equivalence",
+  "tests/test_taur.py::test_camera_sampler_length_ddp_groups_seed_and_epoch",
+  "tests/test_taur.py::test_gradient_routing_through_later_shared_blocks",
+  "tests/test_taur.py::test_metadata_collate_and_duplicate_paths",
+  "tests/test_taur.py::test_model_train_test_metadata_contract_and_checkpoint",
+  "tests/test_taur.py::test_rank_formula_masks_and_gradients",
+  "tests/test_taur.py::test_rank_fp32_under_autocast",
+  "tests/test_taur.py::test_reverse_gallery_and_empty_directions",
+  "tests/test_taur.py::test_schedule_optimizer_and_uad_auxiliary_contract"
+]

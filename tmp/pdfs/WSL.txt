@@ -1,0 +1,1577 @@
+=== PAGE 1 ===
+Weakly Supervised Visible-Infrared Person Re-Identification via Heterogeneous
+Expert Collaborative Consistency Learning
+Yafei Zhang1, Lingqi Kong1, Huafeng Li1*, Jie Wen2
+1Faculty of Information Engineering and Automation, Kunming University of Science and Technology
+2School of Computer Science and Technology, Harbin Institute of Technology, Shenzhen
+zyfeimail@163.com, lingqikong2333@gmail.com, hfchina99@163.com, jiewen pr@126.com
+Abstract
+To reduce the reliance of visible-infrared person re-
+identification (ReID) models on labeled cross-modal sam-
+ples, this paper explores a weakly supervised cross-modal
+person ReID method that uses only single-modal sample
+identity labels, addressing scenarios where cross-modal
+identity labels are unavailable.
+To mitigate the impact
+of missing cross-modal labels on model performance, we
+propose a heterogeneous expert collaborative consistency
+learning framework, designed to establish robust cross-
+modal identity correspondences in a weakly supervised
+manner. This framework leverages labeled data from each
+modality to independently train dedicated classification ex-
+perts.
+To associate cross-modal samples, these classifi-
+cation experts act as heterogeneous predictors, predicting
+the identities of samples from the other modality. To im-
+prove prediction accuracy, we design a cross-modal rela-
+tionship fusion mechanism that effectively integrates pre-
+dictions from different experts. Under the implicit super-
+vision provided by cross-modal identity correspondences,
+collaborative and consistent learning among the experts
+is encouraged, significantly enhancing the model’s ability
+to extract modality-invariant features and improve cross-
+modal identity recognition.
+Experimental results on two
+challenging datasets validate the effectiveness of the pro-
+posed method. Code is available at https://github.
+com/KongLingqi2333/WSL-VIReID.
+1. Introduction
+Visible-Infrared Person Re-Identification (VIReID), a core
+task in cross-modal person re-identification (ReID), plays
+a pivotal role in intelligent security surveillance and smart
+city construction. This task involves matching pedestrian
+images from one modality (infrared or visible) with those
+from the other to accurately identify target pedestrians. It
+effectively overcomes the limitations of RGB-based ReID
+*Corresponding author: Huafeng Li (hfchina99@163.com).
+Figure 1. VIReID faces two key challenges: asynchronous visible-
+infrared (VIS-IR) camera operation causes missing cross-modal
+identity correspondences, while large appearance differences raise
+annotation costs beyond those in single-modality scenarios.
+in nighttime and low-light conditions. However, due to the
+inherent differences in imaging principles between visible
+and infrared images, significant visual discrepancies exist
+between them. These modality-specific differences not only
+make annotating cross-modal datasets significantly more
+challenging and costly but also pose formidable challenges
+for cross-modal pedestrian retrieval.
+Existing approaches typically fall into three learning
+paradigms: fully supervised, semi-supervised, and unsuper-
+vised. Fully supervised approaches [10, 27, 28, 54] rely on
+accurately labeled cross-modal identity samples for model
+training. Semi-supervised approaches [30, 33, 56] lever-
+age a combination of partially labeled and unlabeled data,
+thereby reducing the reliance on labeled samples. These
+approaches typically label samples from a single modality
+to alleviate the challenges of cross-modal labeling. Unsu-
+pervised approaches [4, 36, 43, 50] operate under the as-
+sumption that both intra-modal and inter-modal samples
+are unlabeled. Effective training requires accurate and reli-
+able pseudo-label prediction to enable supervised learning.
+However, existing pseudo-label prediction methods are sen-
+sitive to the quantity of cross-modal positive samples and
+modality discrepancies, often leading to predictions with
+This ICCV paper is the Open Access version, provided by the Computer Vision Foundation.
+Except for this watermark, it is identical to the accepted version;
+the final published version of the proceedings is available on IEEE Xplore.
+12659
+
+=== PAGE 2 ===
+many noisy labels, which ultimately hinder model perfor-
+mance enhancement.
+In response to the aforementioned issues, this paper pro-
+poses a novel weakly supervised paradigm for VIReID.
+This paradigm relies solely on intra-modal identity la-
+bels, eliminating the need for cross-modal identity cor-
+respondence annotations, thereby substantially mitigating
+the challenges and costs associated with cross-modal la-
+beling.
+As illustrated in Figure 1, this design is driven
+by two key challenges: First, infrared and visible cameras
+often operate at different times, making the direct estab-
+lishment of cross-modal pedestrian correspondences chal-
+lenging in real-world scenarios; second, the two modali-
+ties differ significantly in spectral characteristics and visual
+appearance, rendering manual cross-modal identity annota-
+tion both time-consuming and labor-intensive. In contrast,
+acquiring identity annotations within a single modality is
+comparatively easier. Therefore, by fully exploiting intra-
+modal identity labels, this paper indirectly infers cross-
+modal identity correspondences. This strategy not only sig-
+nificantly reduces the cost of labeling but also effectively
+reduces the accumulation of label noise observed in exist-
+ing methods.
+To establish robust cross-modal identity correspon-
+dences in a weakly supervised environment, this paper
+proposes a heterogeneous expert collaborative consistency
+learning framework.
+This framework leverages labeled
+samples within each modality to independently train ded-
+icated classification experts.
+These classification experts
+serve as heterogeneous predictors, estimating pedestrian
+identities for cross-modal samples. Specifically, they pre-
+dict and output the identities of cross-modal samples. To
+enhance prediction accuracy, we propose a cross-modal
+relationship fusion mechanism that integrates the predic-
+tions from both experts, forming accurate inter-modal iden-
+tity correspondences.
+Guided by these correspondences,
+the model gradually enhances its modality-invariant feature
+representation through iterative optimization and collabora-
+tive consistency learning among experts. Throughout this
+process, the experts and the model mutually reinforce each
+other, effectively tackling the challenges of training without
+cross-modal identity correspondences. The main innovative
+contributions of this paper are as follows:
+• We explore VIReID under a weakly supervised setting
+for the first time and propose an effective mechanism for
+predicting cross-modal sample relationships. Our method
+requires annotations only for single-modal samples, elim-
+inating the need for explicit cross-modal correspondence
+annotations. This avoids labor-intensive process of cross-
+modal annotation, significantly reducing annotation costs.
+• We design a heterogeneous expert collaborative consis-
+tency learning framework. This framework constructs re-
+liable cross-modal identity correspondences by integrat-
+ing predictions from experts, enabling supervised refine-
+ment of the ReID model. Furthermore, by dynamically
+guiding experts to make consistent identity predictions
+within and across modalities, our framework achieves
+collaborative and mutually reinforcing training between
+experts and the model.
+• We conduct extensive experimental validation on the
+SYSU-MM01, and LLCM datasets. Experimental results
+consistently validate the effectiveness of our method,
+achieving performance comparable to certain fully super-
+vised approaches.
+2. Related Work
+2.1. Supervised VIReID
+The primary challenge in supervised VIReID is to overcome
+cross-modal feature mismatch caused by modality discrep-
+ancies. To address this issue, researchers have proposed
+various effective methods, which can be categorized into
+three types based on their strategies for handling modality
+differences [14]: modality-shared representation learning
+(MSRL) methods [2, 27, 47, 48], modality-specific infor-
+mation compensation (MSIC) methods [38, 53], and exter-
+nal information-assisted (EIA) methods [15, 17, 46]. MSRL
+methods aim to extract common features from both VIS-IR
+pedestrian images to mitigate the modality gap. Specifi-
+cally, these methods can be classified into three categories:
+feature mapping [9, 29, 35, 54], which aligns the represen-
+tations of IR-VIS images in a shared feature space; feature
+disentanglement [5, 8, 13, 16, 24], which often leverages
+adversarial learning to separate modality-invariant features
+while preserving identity-related information; and metric
+learning [6, 10, 21, 44, 45], which imposes identity con-
+sistency constraints to directly learn representations that are
+both identity-discriminative and modality-invariant. How-
+ever, some of these methods may inadvertently lead to a
+loss of modality-specific identity-related information, ulti-
+mately weakening identity discrimination.
+To mitigate this issue, MSIC methods [34, 38, 53] gen-
+erate missing modality information so that cross-modal
+samples of the same identity share consistent representa-
+tions.
+Meanwhile, EIA methods leverage external cues
+(e.g., pedestrian poses [1, 23] and masks [7, 18, 55]) to
+enhance cross-modal consistency and reduce the impact of
+modality differences on identification. In a supervised set-
+ting, the success of these methods often depends on large-
+scale labeled training data. However, due to modality dif-
+ferences, labeling extensive cross-modal datasets requires
+significant human resources. Thus, developing more cost-
+effective training paradigms is crucial.
+2.2. Semi-supervised VIReID
+To reduce dependence on cross-modal labeled samples, re-
+searchers have proposed semi-supervised VIReID methods.
+12660
+
+=== PAGE 3 ===
+Figure 2. Overview of the proposed method. HEL first performs intra-modality training to obtain experts for each modality, generating
+cross-modality prediction results for CRE. CRE then establishes robust cross-modality correspondences by fusing predictions from multiple
+experts. CCL utilizes the correspondences provided by CRE to facilitate CMCL and CLAE.
+These methods typically leverage labeled visible samples
+and unlabeled infrared samples for training. However, a key
+challenge lies in effectively establishing correspondences
+between samples from different modalities.
+To address
+this, the OTLA [33] method introduces an optimal trans-
+port strategy, modeling label correspondences as an opti-
+mal transport problem. However, OTLA may still intro-
+duce label noise in predictions. To mitigate this issue, DPIS
+[30] and MUCG [56] reweight the loss function based on
+pseudo-label confidence, reducing the adverse impact of
+pseudo-label noise on model performance. Nevertheless,
+the absence of infrared sample labels in semi-supervised
+methods increases the risk of label noise in cross-modal
+samples, thereby limiting further performance gains.
+2.3. Unsupervised VIReID
+To eliminate reliance on labeled samples, unsupervised
+VIReID methods have been proposed.
+These methods
+[20, 39] generate pseudo-labels via clustering within the
+same modality and establish cross-modal correspondences
+using similarity-based matching.
+However, cross-modal
+pseudo-label noise limits the performance of these methods.
+To address this, researchers have explored various strate-
+gies.
+Latent sample mining [4, 37, 43, 50] expands the
+search space for pseudo-label correspondences, reducing
+mismatches. Auxiliary information methods [3, 25, 36] use
+intermediate modality information to bridge and enhance
+cross-modal matching. Multi-level difference optimization
+[19, 26, 31, 40] decomposes cross-modal differences into
+intra- and inter-modality components, gradually improving
+representation consistency and reducing label noise. Cross-
+modal relationship integration [12, 32, 41, 42, 49] refines
+pseudo-labels by aligning multiple correspondences. De-
+spite these efforts, intra-modality label noise still affects
+inter-modality matching, which limits performance gains.
+This study explores VIReID under a weakly supervised set-
+ting, addressing cross-modal labeling challenges in real-
+world scenarios while balancing annotation cost and model
+effectiveness.
+3. Methodology
+3.1. Problem Definition and Method Overview
+Given a dataset X = {X v, X r} comprising visible and in-
+frared person images, where X v = {xv
+i }Nv
+i=1 and X r =
+{xr
+i }N r
+i=1 denote the sets of N v visible and N r infrared
+person images, respectively. The corresponding label sets
+are given by Yv = {yv
+i }Nv
+i=1 and Yr = {yr
+i }Nr
+i=1, where
+yv
+i ∈R1×Cv and yr
+i ∈R1×Cr represent the labels as-
+sociated with samples xv
+i and xr
+i , respectively. Under the
+weakly supervised setting considered in this paper, label in-
+formation is available within each modality, whereas cross-
+modal label correspondences remain unknown.
+To address this issue, we propose the method illustrated
+in Figure 2, which consists of heterogeneous expert learning
+(HEL), cross-modal relationship establishment (CRE), and
+collaborative consistency learning (CCL). During training,
+single-modality classifiers serve as heterogeneous experts
+to learn cross-modal consistency in feature representation.
+Cross-modal relationships are established by comparing the
+consistency of predictions made by these experts. Based on
+the correspondences, prototypes of the same identity across
+modalities are selected for collaborative learning among the
+12661
+
+=== PAGE 4 ===
+experts.
+Meanwhile, leveraging these inter-modal corre-
+spondences, the encoder and shared classifier are further up-
+dated, enabling the network to extract features that maintain
+cross-modal consistency for the same identity.
+3.2. Heterogeneous Expert Learning
+To establish identity correspondences between cross-modal
+images, we propose a cross-modality judgment approach.
+Specifically, to fully exploit identity-discriminative fea-
+tures within each modality, we construct separate pedes-
+trian identity classifiers, denoted as W v and W r, for
+visible and infrared images, respectively. Each classifier
+is trained under supervision from identities within its re-
+spective modality, enabling the feature encoders to learn
+identity-discriminative representations. As shown in Fig-
+ure 2, both feature encoders, Ev and Er, adopt ResNet-50
+[11] as the backbone. The first layers of each encoder serve
+as a modality-specific encoder with unshared parameters,
+while the remaining convolutional layers are shared to en-
+hance cross-modal feature consistency.
+Given the training samples xv
+i and xr
+i , we pass them
+through the encoders Ev and Er to obtain the feature rep-
+resentations f v
+i and f r
+i . To enhance their discriminative
+capability, we employ a combination of cross-entropy loss
+and weighted regularization triplet loss [48] to update Ev
+and Er. The cross-entropy loss is defined as:
+Lexp
+id
+= −
+X
+t∈{v,r}
+1
+nt
+nt
+X
+i=1
+yt
+i log pt
+i,
+(1)
+where nt denotes the number of samples of modality t in
+a mini-batch, and pt
+i = W t(f t
+i ) ∈RCt×1 represents the
+identity prediction vector produced by the classifier W t
+(for t = v, r) given the features f v
+i and f r
+i .
+The weighted regularization triplet loss is defined as:
+Lintr
+wrt =
+X
+t∈{v,r}
+1
+nt
+nt
+X
+i=1
+log(1 + exp(
+X
+j
+wp
+ijdp
+ij −
+X
+k
+wn
+ikdn
+ik))
+(2)
+where
+wp
+ij =
+exp(dp
+ij)
+P
+dij∈Pi exp(dp
+ij),
+wn
+ik =
+exp(−dn
+ik)
+P
+dik∈Ni exp(−dn
+ik),
+(3)
+with Pi and Ni denoting the sets of positive and negative
+samples, respectively, for the anchor sample xt
+i within the
+same modality in a mini-batch. Here, j and k index the
+positive and negative samples, while dp
+ij = ∥f t
+i −f t
+j∥2
+and dn
+ik = ∥f t
+i −f t
+k∥2 represent the Euclidean distances
+between positive and negative pairs, respectively. The clas-
+sifiers W v and W r, trained by minimizing the loss func-
+tions in Eqs. (1) and (2), serve as experts in identity dis-
+crimination for their respective modalities. Since W v and
+W r are trained on distinct modalities and focus on different
+identity-related information in pedestrian samples, we refer
+to them as heterogeneous experts.
+3.3. Establishment of Cross-Modal Relationships
+Although the encoders trained with the constraints in
+Eq.(1) and Eq.(2) extract features with certain discrimi-
+native power, the absence of cross-modality sample pairs
+poses challenges for W v and W r in cross-identification.
+To address this issue, it is essential to establish correspon-
+dences between modalities.
+To this end, we propose a
+cross-modality identity relationship establishment mecha-
+nism. This mechanism mitigates the limitations of individ-
+ual experts by integrating their predictions to construct reli-
+able cross-modality identity correspondences. Specifically,
+after training the heterogeneous experts using the loss func-
+tions in Eq.(1) and Eq.(2), these experts are employed to
+predict the identities of all samples from the other modality.
+In the classification vector, the score at each position rep-
+resents the probability that a given sample belongs to the
+corresponding identity in the other modality.
+Similar to [39], we employ the Count Priority Selec-
+tion method to obtain the expert decision matrix M t→¯t,
+where t, ¯t ∈{v, r}, t ̸= ¯t. The notation t →¯t denotes
+the prediction results of ¯t-modality experts on t-modality
+samples, and M t→¯t ∈RCt×C¯t encodes the identity corre-
+spondences between the two modalities. For example, the
+element at the i-th row and j-th column of M v→r repre-
+sents the correspondence between the i-th visible pedes-
+trian identity and the j-th infrared pedestrian identity. If
+the two identities correspond, the respective element in
+M v→r is set to 1; otherwise, it is 0. While relying solely
+on identical predictions across experts as pseudo-labels en-
+sures high reliability, it may overlook many potential iden-
+tity correspondences. To mitigate this issue, we classify all
+cross-modal identity correspondences into three categories
+based on the consistency of expert predictions: consistent
+matches, unique matches, and conflicting matches.
+Based on the definition of consistent matching, the con-
+sistent identity relationship matrix Mc is obtained as fol-
+lows:
+Mc = M t→¯t ⊙(M
+¯t→t)T
+(4)
+where ⊙denotes the Hadamard product. When Mc(i, j) =
+1, it indicates that the experts unanimously agree that the i-
+th identity in the t modality corresponds to the j-th identity
+in the ¯t modality. The single identity relationship matrix for
+one expert is defined as:
+M t→¯t
+s
+= AT ⊙M t→¯t,
+A(i, j) = ri · cj,
+ri = 1{0}(
+Ct
+X
+j=1
+M
+¯t→t(i, j)),
+cj = 1{0}(
+C¯t
+X
+i=1
+M
+¯t→t(i, j)),
+(5)
+12662
+
+=== PAGE 5 ===
+where 1{0}(·) is an indicator function that returns 1 if the
+input equals 0 and 0 otherwise.
+Let Ms = M v→r
+s
++
+(M r→v
+s
+)T. The contradictory identity relationship matrix
+is then given by:
+Mw = M v→r + (M r→v)T −2Mc −Ms
+(6)
+The matrices Mc, Ms, and Mw effectively represent the
+cross-modal identity correspondences. Consequently, they
+are used to guide Ev and Er to extract consistent features
+for cross-modal samples of the same identity.
+3.4. Collaborative Consistency Learning
+Cross-modal Consistency Learning. Due to the challenge
+of unknown pedestrian identities across modal samples, it is
+not feasible to utilize identity relationships between cross-
+modal samples to guide the training of encoders, limiting
+the model’s cross-modal matching performance. To address
+this issue, we propose a cross-modal consistency learning
+method based on the identity relationships established by
+Mc, Ms, and Mw among samples across modalities. In
+this method, for samples with established identity relation-
+ships in Mc, Ms, and Mw, we apply a cross-modal cross-
+entropy loss as a constraint:
+Lstro
+id
+= −1
+ns
+ns
+X
+i=1
+ˆqv
+i log (W c(f v
+i ))−1
+nr
+nr
+X
+i=1
+qr
+i log (W c(f r
+i ))
+(7)
+where nr denotes the number of infrared samples in a mini-
+batch, and ns denotes the number of visible samples in the
+mini-batch that have corresponding identities with the in-
+frared modality samples in the training set. ˆqv
+i represents
+the one-hot vector of the infrared modality identity corre-
+sponding to the i-th visible sample in Mc or Ms—i.e., the
+pseudo-label for the visible sample. W c(f t
+i ) represents the
+classification result of f t
+i by the shared classifier W c.
+For samples in Mw with contradictory identity corre-
+spondences, we employ a relaxed identity discrimination
+constraint during model training to mitigate the impact of
+cross-modal label noise:
+Lweak
+id
+= −1
+nvw
+nv
+w
+X
+i=1
+mi log (1 −W c(f v
+i ) + ϵ)
+(8)
+mil =
+ 1,
+if pv
+il < mink∈K (pv
+ik) ,
+0,
+otherwise
+(9)
+where K = {k | Mw(j, k) = 1}, j is the intra-modal
+identity corresponding to sample xv
+i , and ϵ = 10−10 is used
+to prevent numerical overflow. pv
+il represents the probability
+score at the l-th position in the classification result W c(f v
+i )
+for sample xv
+i . mil is the l-th element of the vector mi.
+This loss function effectively leverages samples with uncer-
+tain cross-modal identities for model training. Additionally,
+during model training, we adopt a cross-modal weighted
+regularization triplet loss, Lcros
+wrt . Unlike Pi in Lintr
+wrt , Pi in
+Lcros
+wrt represents the set of positive samples corresponding
+to the i-th anchor sample xt
+i in a mini-batch, which includes
+both intra-modal positive samples and cross-modal positive
+samples obtained from Mc.
+Collaborative Learning Among Experts. Since experts
+within each modality are trained on uni-modal samples,
+their ability to discriminate cross-modal identities is lim-
+ited.
+Consequently, when heterogeneous experts predict
+pedestrian identities across modalities, they may produce
+inconsistent results for challenging samples, reducing the
+accuracy of Mc, Ms, and Mw. To address this issue, we
+propose a collaborative consistency learning method among
+heterogeneous experts. Specifically, we guide the experts
+to generate consistent predictions for cross-modal positive
+samples, introducing a degree of homogeneity to enhance
+cross-modal consistency.
+However, within a mini-batch,
+cross-modal positive samples of the same identity may be
+absent. Even when present, they may not fully capture the
+diversity of pedestrian appearances. To mitigate this, we
+construct prototypes Pt = [Pt
+1, Pt
+2, . . . , Pt
+Ct]⊤∈RCt×d
+for pedestrian identities in each modality, where d denotes
+the feature dimension. During training, we initialize the
+prototypes using the mean feature of each identity and up-
+date them as follows:
+Pt
+i ←λPt
+i + (1 −λ) ¯
+f t
+i
+(10)
+where Pt
+i represents the prototype feature of the i-th iden-
+tity in modality t, λ ∈[0, 1] is the momentum update co-
+efficient, and ¯f t
+i denotes the mean feature of the samples
+associated with identity i within a mini-batch.
+Assume that pv→v
+i
+= W v(f v
+i ) represents the classifica-
+tion result of W v for f v
+i , and pr→v
+i
+= W v(Pr
+ˆyr
+i ) represents
+the classification result of W v for Pr
+ˆyr
+i , where ˆyr
+i represents
+the identity of xv
+i in Mc. To promote consistency in the
+decision-making process of experts across different modal-
+ities, we propose a collaborative consistency loss for W v:
+Lv
+homo =
+1
+nc × Cv
+nc
+X
+i=1
+∥pv→v
+i
+−pr→v
+i
+∥2
+2
+(11)
+where nc denotes the number of visible samples in a mini-
+batch that have identity relationships in Mc. Similarly, we
+define the collaborative consistency loss Lr
+homo for W r. It
+is important to note that the cross-modal identity relation-
+ships predicted by experts may not always be accurate, and
+directly enforcing a closer match between the two modali-
+ties could negatively impact model training.
+Typically, when an expert’s prediction confidence is
+high, the probability assigned to the predicted identity is
+large, whereas when the prediction is uncertain, this proba-
+bility tends to be smaller. Based on this observation, we use
+a weight derived from the information entropy H of the pre-
+diction results to dynamically adjust the constraint strength
+12663
+
+=== PAGE 6 ===
+in the expert homogeneity loss. The more reliable an ex-
+pert’s prediction, the weaker the constraining effect of the
+loss. Specifically, the total collaborative consistency loss is
+formulated as follows:
+Lhomo = wvLv
+homo + wrLr
+homo
+(12)
+where
+wv =
+H(pr→v)
+H(pr→v)+H(pv→r), wr =
+H(pv→r)
+H(pr→v)+H(pv→r) (13)
+Additionally, to prevent experts from forgetting their orig-
+inal knowledge, we continue training them within their re-
+spective modalities by minimizing the loss in Eq. (1).
+3.5. Model Optimization
+In the expert construction phase, the overall optimization
+objective is formulated as:
+Lphase1 = Lexp
+id
++ λ1Lintr
+wrt
+(14)
+where λ1 is a hyperparameter used to balance the model.
+In collaborative consistency learning phase, the overall
+optimization objective is:
+Lphase2 = Lexp
+id
++ Lstro
+id
++ Lhomo + λ1Lcros
+wrt + λ2Lweak
+id
+(15)
+where Lcros
+wrt is the weighted regularization triplet loss be-
+tween cross-modal samples, as defined in Eq. (2). Dur-
+ing collaborative consistency learning, cross-modal consis-
+tency learning and expert collaborative learning reinforce
+each other, enabling the network to extract cross-modal con-
+sistent features and effectively addressing the absence of
+cross-modal sample labels. Simultaneously, heterogeneous
+experts provide more reliable identity predictions during the
+homogenization process, significantly improving the accu-
+racy of Mc, Ms, and Mw.
+4. Experiments
+4.1. Datasets and Evaluation Protocols
+To evaluate the proposed method, we assess its performance
+on two public VIReID datasets: SYSU-MM01 [35] and
+LLCM [54].
+SYSU-MM01, the first large-scale VIReID dataset, con-
+tains images captured by four visible cameras and two near-
+infrared cameras across various indoor and outdoor scenes.
+It includes 491 pedestrian identities, with a total of 287,628
+visible images and 15,792 infrared images. The training set
+consists of 22,258 visible images and 11,909 infrared im-
+ages from 395 identities, while the test set covers 96 iden-
+tities. We evaluate performance under both all-search and
+indoor-search modes.
+LLCM, one of the most challenging large-scale VIReID
+datasets, comprises images captured by nine visible cam-
+eras and nine infrared cameras deployed in low-light envi-
+ronments. It contains 46,767 images from 1,064 identities,
+including 16,946 visible and 13,975 infrared images. The
+training set includes samples from 713 identities, while the
+test set consists of 8,680 visible and 7,166 infrared images
+from 351 identities. We assess performance in both visible-
+to-infrared and infrared-to-visible retrieval modes.
+Evaluation Protocols. Following standard practice, we use
+Cumulative Matching Characteristic (CMC) [45], mean Av-
+erage Precision (mAP), and mean Inverse Negative Penalty
+(mINP) [48] for evaluation.
+4.2. Implementation Details
+The proposed method is implemented in PyTorch, with ex-
+periments conducted on a single RTX 4090 GPU. ResNet-
+50 serves as the encoder, and all input images are resized to
+288 × 144. During training, data augmentation techniques,
+including style augmentation [57], random cropping, hori-
+zontal flipping, and random erasing, are applied. After com-
+pleting heterogeneous expert learning, collaborative con-
+sistency learning is performed for 120 epochs. The initial
+learning rate is set to 3×10−4 for the encoder and 6×10−4
+for the experts and shared classifier. A warmup strategy
+is applied for the first 10 epochs to gradually increase the
+learning rate, which is then decayed to 10% at the 30th and
+70th epochs. The hyper-parameter λ for prototypes is set to
+0.8, while λ1 and λ2 are both set to 0.25.
+4.3. Comparasion with State-of-the-Art Methods
+To validate the effectiveness of our method, we compare
+it with state-of-the-art approaches in supervised VIReID
+(SVIReID), semi-supervised VIReID (SSVIReID), and un-
+supervised VIReID (USVIReID). The experimental results
+on the SYSU-MM01 and LLCM datasets are presented in
+Tables 1 and 2, with the best performance highlighted in
+bold and the second-best underlined.
+Comparison with Supervised Methods. In a weakly su-
+pervised setting with missing cross-modal annotations, our
+method achieves performance on the SYSU-MM01 and
+LLCM datasets that is comparable to or even surpasses
+some SVIReID methods. This demonstrates its ability to ef-
+fectively handle missing cross-modal annotations and learn
+cross-modal invariant features.
+Comparison with Semi-Supervised Methods. As shown
+in Tables 1 and 2, our method significantly outperforms ex-
+isting SSVIReID approaches. As previously noted, pseudo-
+label noise caused by missing infrared annotations hinders
+the performance of semi-supervised methods, especially on
+the challenging SYSU-MM01 and LLCM datasets. Specif-
+ically, on SYSU-MM01 (all search), our method improves
+Rank-1 accuracy and mAP by 12.0% and 11.0%, respec-
+tively, compared to DPIS. It also significantly outperforms
+MAUM-50 and MAUM-100, which are trained with 50 and
+100 infrared identities, respectively. On LLCM (VIS to IR),
+our method achieves improvements of 11.1% and 10.5% in
+12664
+
+=== PAGE 7 ===
+Table 1. Comparison of CMC (%), mAP (%) and mINP (%) performances with the state-of-the-art methods on SYSU-MM01 dataset.
+SYSU-MM01 Settings
+All Search
+Indoor Search
+Type
+Methods
+Venue
+Rank-1
+Rank-10
+Rank-20
+mAP
+mINP
+Rank-1
+Rank-10
+Rank-20
+mAP
+mINP
+SVIReID
+AGW[48]
+TPAMI’21
+47.5
+84.4
+92.1
+47.7
+35.3
+54.2
+91.1
+95.6
+63.0
+59.2
+LbA[27]
+ICCV’21
+55.4
+-
+-
+54.1
+-
+58.5
+-
+-
+66.3
+-
+CAJ[47]
+ICCV’21
+69.9
+95.7
+98.5
+66.9
+53.6
+76.3
+97.9
+99.5
+80.4
+76.8
+DEEN[54]
+CVPR’23
+74.7
+97.6
+99.2
+71.8
+-
+80.3
+99.0
+99.8
+83.3
+-
+MUN [51]
+ICCV’23
+76.2
+97.8
+-
+73.8
+-
+79.4
+98.1
+-
+82.1
+-
+CSDN [52]
+TMM’25
+76.7
+97.2
+99.1
+73.0
+-
+84.5
+99.2
+99.6
+86.8
+-
+SSVIReID
+MAUM-50 [22]
+CVPR’22
+28.8
+-
+-
+36.1
+-
+-
+-
+-
+-
+-
+MAUM-100 [22]
+CVPR’22
+38.5
+-
+-
+39.2
+-
+-
+-
+-
+-
+-
+OTLA [33]
+ECCV’22
+48.2
+-
+-
+43.9
+-
+47.4
+-
+-
+56.8
+-
+DPIS [30]
+ICCV’23
+58.4
+-
+-
+55.6
+-
+63.0
+-
+-
+70.0
+-
+USVIReID
+ADCA [39]
+MM’22
+45.5
+85.3
+93.2
+42.7
+28.3
+50.6
+89.7
+96.2
+59.1
+55.2
+CCLNet [3]
+MM’23
+54.0
+88.8
+95.0
+50.2
+-
+56.7
+91.1
+97.2
+65.1
+-
+GUR [40]
+ICCV’23
+63.5
+-
+-
+61.6
+47.9
+71.1
+-
+-
+76.2
+72.6
+MMM [31]
+ECCV’24
+61.6
+93.3
+98.0
+57.9
+-
+64.4
+95.0
+98.2
+70.4
+-
+DLM [49]
+TPAMI’25
+62.2
+93.4
+97.4
+58.4
+43.7
+67.3
+95.9
+99.2
+72.7
+68.9
+PCAL [43]
+TIFS’25
+57.9
+91.0
+96.4
+52.9
+36.9
+60.1
+93.3
+97.3
+66.7
+62.1
+WSVIReID
+Ours
+-
+70.4
+95.8
+98.8
+66.6
+52.7
+76.5
+97.5
+99.3
+80.2
+76.6
+Table 2. Comparison of Rank-1 (%) and mAP (%) performances
+with the state-of-the-art methods on LLCM dataset, where * de-
+notes the results obtained using publicly available code for the ex-
+periment.
+LLCM Settings
+VIS to IR
+IR to VIS
+Type
+Methods
+Venue
+Rank-1
+mAP
+Rank-1
+mAP
+SVIReID
+AGW [48]
+TPAMI’21
+51.5
+55.3
+43.6
+51.8
+LbA[27]
+ICCV’21
+50.8
+55.6
+43.8
+53.1
+CAJ [47]
+ICCV’21
+56.5
+59.8
+48.8
+56.6
+DEEN [54]
+CVPR’23
+62.5
+65.8
+54.9
+62.9
+CSDN [52]
+TMM’25
+63.7
+66.5
+55.8
+63.5
+SSVIReID
+OTLA [33]
+ECCV’22
+44.2
+48.2
+36.2
+42.2
+USVIReID
+ADCA∗[39]
+MM’22
+42.5
+46.9
+38.4
+44.4
+PGM∗[37]
+CVPR’23
+44.9
+49.0
+39.4
+45.3
+WSVIReID
+Ours
+-
+55.3
+58.7
+47.3
+53.3
+Rank-1 accuracy and mAP, respectively, over OTLA. These
+results validate its effectiveness in addressing the challenge
+of missing cross-modal labels.
+Comparison with Unsupervised Methods. Compared to
+the USVIReID methods, our approach achieves substantial
+performance gains with minimal annotation costs. Specif-
+ically, on SYSU-MM01 (all search), it surpasses GUR by
+6.9% and 5.0% in Rank-1 accuracy and mAP, respectively.
+On LLCM (VIS to IR), it outperforms PGM by 10.4% and
+9.7% in Rank-1 accuracy and mAP, respectively. These im-
+provements stem from the collaborative promotion mech-
+anism, which effectively establishes relationships between
+cross-modal samples and enhances supervision.
+4.4. Ablation Study
+The proposed method consists of three main components:
+HEL, CRE, and CCL. The model trained solely with HEL
+serves as the Baseline. HEL enables the model to acquire
+fundamental cross-modal recognition capabilities, provid-
+ing a foundation for constructing cross-modal correspon-
+dences based on prediction results. CRE is designed to en-
+hance cross-modal correspondences for CMCL and must be
+evaluated in conjunction with CMCL. To assess its impact,
+we compare consistency prediction using heterogeneous ex-
+perts as cross-modal correspondences with CRE+CMCL re-
+sults. CCL comprises two parts: CMCL and CLAE. In the
+ablation study, CMCL without CRE prediction results is de-
+noted as B+CMCL\CRE, while incorporating CRE is de-
+noted as B+CRE+CMCL. The full model is referred to as
+B+CRE+CMCL+CLAE. Table 3 presents the experimental
+results for different components.
+Effectiveness of HEL. HEL is a core component of the
+Baseline model. On the SYSU-MM01 dataset, the Base-
+line achieves Rank-1 and mAP scores of 47.8% and 47.2%,
+respectively, in all-search mode, and 60.8% and 67.7%, re-
+spectively, in indoor-search mode. These results indicate
+that a model trained solely within modalities already pos-
+sesses some cross-modal retrieval capability, providing a
+strong foundation for further optimization. However, intra-
+modal training is limited to optimizing within each modal-
+ity and does not establish correspondences between cross-
+modal samples. Therefore, relying solely on intra-modal
+training is insufficient to address the challenges posed by
+the absence of inter-modal correspondences in VI-ReID.
+Effectiveness of CMCL. Using only expert-provided con-
+sistency predictions for cross-modal consistency learning,
+B+CMCL\CRE improves Rank-1 and mAP by 18.9% and
+15.6%, respectively, over the Baseline in the all-search set-
+ting. In the indoor-search setting, Rank-1 and mAP improve
+by 12.6% and 9.9%, respectively. These results demonstrate
+that CMCL effectively reduces modality differences and en-
+hances cross-modal retrieval.
+By leveraging CMCL, the
+model learns more consistent feature representations across
+modalities, leading to improved retrieval performance.
+Effectiveness of CRE. By introducing the cross-modal
+relation establishment strategy, B+CRE+CMCL improves
+Rank-1 and mAP by 1.3% and 1.8%, respectively, over
+B+CMCL\CRE in the all-search setting.
+In the indoor-
+12665
+
+=== PAGE 8 ===
+Table 3. Ablation study on SYSU-MM01. “B” denotes the Base-
+line method.
+Settings
+All Search
+Indoor Search
+Rank-1
+mAP
+Rank-1
+mAP
+B
+47.8
+47.2
+60.8
+67.7
+B+CMCL\CRE
+66.7
+62.8
+73.4
+77.6
+B+CRE+CMCL
+68.0
+64.6
+74.0
+78.3
+B+CRE+CMCL+CLAE
+70.4
+66.6
+76.5
+80.2
+search setting, Rank-1 and mAP improve by 0.6% and
+0.7%, respectively. This improvement arises because the
+relation establishment strategy not only integrates consis-
+tent predictions from experts but also leverages inconsis-
+tent ones. Consequently, it facilitates more comprehensive
+cross-modal identity correspondence and effectively miti-
+gates relation-matching errors caused by the limitations of
+individual experts.
+Table 4. Further analysis of CRE effectiveness on SYSU-MM01.
+Settings
+All Search
+Indoor Search
+Rank-1
+mAP
+Rank-1
+mAP
+B+CMCL(M r→v)
+61.0
+57.5
+69.8
+75.1
+B+CMCL(M v→r)
+67.7
+64.4
+73.7
+77.8
+B+CMCL\CRE
+66.7
+62.8
+73.4
+77.6
+B+CRE+CMCL
+68.0
+64.6
+74.0
+78.3
+Effectiveness
+of
+CLAE.
+After
+introducing
+CLAE,
+B+CRE+CMCL+CLAE improves Rank-1 and mAP by
+2.4% and 2.0%, respectively, over B+CRE+CMCL in the
+all-search setting.
+In the indoor-search setting, Rank-1
+and mAP improve by 2.5% and 1.9%, respectively. These
+results indicate that CLAE further enhances identity pre-
+diction accuracy for cross-modal samples. By leveraging
+CLAE, the two heterogeneous experts progressively reduce
+modality discrepancies, enhance collaboration, and gener-
+ate more consistent cross-modal predictions. Additional
+experimental results are in the supplementary material.
+4.5. Further Analysis of CRE
+To further analyze the role of the proposed CRE, we uti-
+lize the cross-modal relationships established by M r→v
+and M v→r in Eq.
+(6) to guide model training.
+The
+models trained with these relationships are denoted as
+B+CMCL(M r→v) and B+CMCL(M v→r), respectively.
+As shown in Table 4, B+CMCL(M r→v) exhibits sig-
+nificantly lower recognition performance compared to
+B+CMCL(M v→r). This is mainly because infrared images
+lack discriminative color information, limiting the ability
+of visible expert to recognize infrared images, whereas in-
+frared expert do not face this issue and thus perform bet-
+ter. Since the recognition abilities of different experts are
+complementary, the B+CMCL model trained solely on con-
+sistent predictions among experts fails to fully exploit this
+complementarity. The CRE method effectively addresses
+this issue, and with its assistance, the B+CRE+CMCL
+model achieves the best recognition performance, further
+validating the effectiveness of CRE.
+Figure 3. Visualization comparison of feature distributions be-
+tween baseline and our method on SYSU-MM01: intra- and inter-
+class distances of cross-modal sample features in the first row, and
+t-SNE mapped 2D feature space visualization in the second row,
+with 10 randomly selected identities and 10 samples each.
+4.6. Visualization Analysis
+We further validate our method by visualizing feature dis-
+tributions. Figure 3 (top) compares the intra-class and inter-
+class distances of features from cross-modal samples be-
+tween the baseline and our method. Our method signifi-
+cantly increases the gap between intra-class and inter-class
+distances, effectively reducing the distance between same-
+identity cross-modal samples and minimizing modality dis-
+crepancies. Figure 3 (bottom) shows the t-SNE visualiza-
+tion of features in 2D, with circular points for visible im-
+ages, triangular points for infrared images, and colors rep-
+resenting pedestrian identities. Compared to the baseline,
+our method clusters same-identity features more effectively
+while maintaining separation between different identities,
+demonstrating its ability to mitigate modality discrepancies.
+5. Conclusion
+This paper proposes a weakly supervised cross-modal reID
+method that establishes identity correspondences without
+labeled cross-modal identity pairs. By leveraging a hetero-
+geneous expert collaborative consistency learning frame-
+work, our method effectively integrates predictions from
+modality-specific classification experts through a cross-
+modal relationship fusion mechanism.
+Experimental re-
+sults on two challenging datasets validate its effectiveness
+in enhancing cross-modal identity recognition and extract-
+ing modality-invariant representations. This work provides
+a promising direction for reducing reliance on fully labeled
+cross-modal datasets, with potential for further improve-
+ments in expert collaboration and adaptive learning.
+12666
+
+=== PAGE 9 ===
+Acknowledgments
+This work was supported in part by the National Natu-
+ral Science Foundation of China (62276120, 62161015,
+61966021), and the Yunnan Fundamental Research Projects
+(202401AS070106, 202301AV070004, 202501AS070123).
+References
+[1] Cuiqun Chen, Mang Ye, Meibin Qi, Jingjing Wu, Jianguo
+Jiang, and Chia-Wen Lin. Structure-aware positional trans-
+former for visible-infrared person re-identification.
+IEEE
+Transactions on Image Processing, 31:2352–2364, 2022. 2
+[2] Kunfeng Chen, Zhisong Pan, Jiabao Wang, Shanshan Jiao,
+Zhicheng Zeng, and Zhuang Miao.
+Joint feature learning
+network for visible-infrared person re-identification. In Chi-
+nese Conference on Pattern Recognition and Computer Vi-
+sion (PRCV), pages 652–663. Springer, 2020. 2
+[3] Zhong Chen, Zhizhong Zhang, Xin Tan, Yanyun Qu, and
+Yuan Xie.
+Unveiling the power of clip in unsupervised
+visible-infrared person re-identification.
+In Proceedings
+of the 31st ACM International Conference on Multimedia
+(ACMMM), pages 3667–3675, 2023. 3, 7
+[4] De Cheng, Lingfeng He, Nannan Wang, Shizhou Zhang,
+Zhen Wang, and Xinbo Gao.
+Efficient bilateral cross-
+modality cluster matching for unsupervised visible-infrared
+person reid. In Proceedings of the 31st ACM International
+Conference on Multimedia (ACMMM), pages 1325–1333,
+2023. 1, 3
+[5] Seokeon Choi, Sumin Lee, Youngeun Kim, Taekyung Kim,
+and Changick Kim.
+Hi-cmd: Hierarchical cross-modality
+disentanglement for visible-infrared person re-identification.
+In Proceedings of the IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition (CVPR), pages 10257–
+10266, 2020. 2
+[6] Pingyang Dai, Rongrong Ji, Haibin Wang, Qiong Wu,
+and Yuyu Huang.
+Cross-modality person re-identification
+with generative adversarial training. In Proceedings of the
+Twenty-Seventh International Joint Conference on Artificial
+Intelligence (IJCAI), pages 677–683, 2018. 2
+[7] Jiawei Feng, Ancong Wu, and Wei-Shi Zheng. Shape-erased
+feature learning for visible-infrared person re-identification.
+In Proceedings of the IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition (CVPR), pages 22752–
+22761, 2023. 2
+[8] Zhanxiang Feng, Jianhuang Lai, and Xiaohua Xie. Learning
+modality-specific representations for visible-infrared person
+re-identification. IEEE Transactions on Image Processing,
+29:579–590, 2020. 2
+[9] Chaoyou Fu, Yibo Hu, Xiang Wu, Hailin Shi, Tao Mei, and
+Ran He. Cm-nas: Cross-modality neural architecture search
+for visible-infrared person re-identification. In Proceedings
+of the IEEE/CVF International Conference on Computer Vi-
+sion (ICCV), pages 11823–11832, 2021. 2
+[10] Yi Hao, Nannan Wang, Jie Li, and Xinbo Gao. Hsme: Hy-
+persphere manifold embedding for visible thermal person re-
+identification. In Proceedings of the AAAI Conference on
+Artificial Intelligence (AAAI), pages 8385–8392, 2019. 1, 2
+[11] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.
+Deep residual learning for image recognition. In Proceed-
+ings of the IEEE Conference on Computer Vision and Pattern
+Recognition (CVPR), pages 770–778, 2016. 4
+[12] Lingfeng He, De Cheng, Nannan Wang, and Xinbo Gao.
+Exploring homogeneous and heterogeneous consistent label
+associations for unsupervised visible-infrared person reid.
+International Journal of Computer Vision, 133:3129–3148,
+2025. 3
+[13] Weipeng Hu, Bohong Liu, Haitang Zeng, Yanke Hou,
+and Haifeng Hu.
+Adversarial decoupling and modality-
+invariant representation learning for visible-infrared person
+re-identification. IEEE Transactions on Circuits and Systems
+for Video Technology, 32(8):5095–5109, 2022. 2
+[14] Nianchang Huang, Jianan Liu, Yunqi Miao, Qiang Zhang,
+and Jungong Han. Deep learning for visible-infrared cross-
+modality person re-identification: A comprehensive review.
+Information Fusion, 91:396–411, 2023. 2
+[15] Yan Huang, Qiang Wu, Jingsong Xu, Yi Zhong, Peng Zhang,
+and Zhaoxiang Zhang. Alleviating modality bias training for
+infrared-visible person re-identification. IEEE Transactions
+on Multimedia, 24:1570–1582, 2022. 2
+[16] Kajal Kansal, A. V. Subramanyam, Zheng Wang, and
+Shin’ichi Satoh. Sdl: Spectrum-disentangled representation
+learning for visible-infrared person re-identification. IEEE
+Transactions on Circuits and Systems for Video Technology,
+30(10):3422–3432, 2020. 2
+[17] Diangang Li, Xing Wei, Xiaopeng Hong, and Yihong Gong.
+Infrared-visible cross-modal person re-identification with an
+x modality. In Proceedings of the AAAI Conference on Arti-
+ficial Intelligence (AAAI), pages 4610–4617, 2020. 2
+[18] Shuang Li, Jiaxu Leng, Ji Gan, Mengjingcheng Mo, and
+Xinbo Gao.
+Shape-centered representation learning for
+visible-infrared person re-identification.
+Pattern Recogni-
+tion, 167:111756, 2025. 2
+[19] Zhiyong Li, Haojie Liu, Xiantao Peng, and Wei Jiang.
+Inter-intra modality knowledge learning and clustering
+noise alleviation for unsupervised visible-infrared person re-
+identification. IEEE Transactions on Knowledge and Data
+Engineering, 36(8):3934–3947, 2024. 3
+[20] Wenqi Liang, Guangcong Wang, Jianhuang Lai, and Xiao-
+hua Xie.
+Homogeneous-to-heterogeneous: Unsupervised
+learning for rgb-infrared person re-identification.
+IEEE
+Transactions on Image Processing, 30:6392–6407, 2021. 3
+[21] Haijun Liu, Xiaoheng Tan, and Xichuan Zhou. Parameter
+sharing exploration and hetero-center triplet loss for visible-
+thermal person re-identification. IEEE Transactions on Mul-
+timedia, 23:4414–4425, 2021. 2
+[22] Jialun Liu, Yifan Sun, Feng Zhu, Hongbin Pei, Yi Yang,
+and Wenhui Li. Learning memory-augmented unidirectional
+metrics for cross-modality person re-identification. In Pro-
+ceedings of the IEEE/CVF Conference on Computer Vision
+and Pattern Recognition (CVPR), pages 19366–19375, 2022.
+7
+[23] Min Liu,
+Yeqing Sun,
+Xueping Wang,
+Yuan Bian,
+Zhu Zhang, and Yaonan Wang.
+Pose-guided modality-
+invariant feature alignment for visible-infrared object re-
+12667
+
+=== PAGE 10 ===
+identification.
+IEEE Transactions on Instrumentation and
+Measurement, 73:1–10, 2024. 2
+[24] Zefeng Lu, Ronghao Lin, and Haifeng Hu.
+Disentan-
+gling modality and posture factors: Memory-attention and
+orthogonal decomposition for visible-infrared person re-
+identification. IEEE Transactions on Neural Networks and
+Learning Systems, 36(3):5494–5508, 2025. 2
+[25] Zhiqi Pang, Chunyu Wang, Honghu Pan, Lingling Zhao,
+Junjie Wang, and Maozu Guo. Mimr: Modality-invariance
+modeling and refinement for unsupervised visible-infrared
+person re-identification.
+Knowledge-Based Systems, 285:
+111350, 2024. 3
+[26] Zhiqi Pang, Chunyu Wang, Lingling Zhao, Yang Liu, and
+Gaurav Sharma.
+Cross-modality hierarchical clustering
+and refinement for unsupervised visible-infrared person re-
+identification. IEEE Transactions on Circuits and Systems
+for Video Technology, 34(4):2706–2718, 2024. 3
+[27] Hyunjong Park, Sanghoon Lee, Junghyup Lee, and Bum-
+sub Ham.
+Learning by aligning: Visible-infrared person
+re-identification using cross-modal correspondences.
+In
+Proceedings of the IEEE/CVF International Conference on
+Computer Vision (ICCV), pages 12046–12055, 2021. 1, 2, 7
+[28] Nan Pu, Wei Chen, Yu Liu, Erwin M. Bakker, and Michael S.
+Lew. Dual gaussian-based variational subspace disentangle-
+ment for visible-infrared person re-identification.
+In Pro-
+ceedings of the 28th ACM International Conference on Mul-
+timedia (ACMMM), pages 2149–2158, 2020. 1
+[29] Liuxiang Qiu, Si Chen, Yan Yan, Jing-Hao Xue, Da-Han
+Wang, and Shunzhi Zhu. High-order structure based middle-
+feature learning for visible-infrared person re-identification.
+In Proceedings of the AAAI Conference on Artificial Intelli-
+gence (AAAI), pages 4596–4604, 2024. 2
+[30] Jiangming Shi, Yachao Zhang, Xiangbo Yin, Yuan Xie,
+Zhizhong Zhang, Jianping Fan, Zhongchao Shi, and Yanyun
+Qu.
+Dual pseudo-labels interactive self-training for semi-
+supervised visible-infrared person re-identification. In Pro-
+ceedings of the IEEE/CVF International Conference on
+Computer Vision (ICCV), pages 11218–11228, 2023. 1, 3,
+7
+[31] Jiangming Shi, Xiangbo Yin, Yeyun Chen, Yachao Zhang,
+Zhizhong Zhang, Yuan Xie, and Yanyun Qu.
+Multi-
+memory matching for unsupervised visible-infrared person
+re-identification. In European Conference on Computer Vi-
+sion (ECCV), pages 456–474. Springer, 2024. 3, 7
+[32] Xiao Teng, Xingyu Shen, Kele Xu, and Long Lan. Enhanc-
+ing unsupervised visible-infrared person re-identification
+with bidirectional-consistency gradual matching.
+In Pro-
+ceedings of the 32nd ACM International Conference on Mul-
+timedia (ACMMM), pages 9856–9865, 2024. 3
+[33] Jiangming Wang, Zhizhong Zhang, Mingang Chen, Yi
+Zhang, Cong Wang, Bin Sheng, Yanyun Qu, and Yuan Xie.
+Optimal transport for label-efficient visible-infrared person
+re-identification. In European Conference on Computer Vi-
+sion (ECCV), pages 93–109. Springer, 2022. 1, 3, 7
+[34] Zhixiang Wang, Zheng Wang, Yinqiang Zheng, Yung-Yu
+Chuang, and Shin’ichi Satoh. Learning to reduce dual-level
+discrepancy for infrared-visible person re-identification. In
+Proceedings of the IEEE/CVF Conference on Computer Vi-
+sion and Pattern Recognition (CVPR), pages 618–626, 2019.
+2
+[35] Ancong Wu, Wei-Shi Zheng, Hong-Xing Yu, Shaogang
+Gong, and Jianhuang Lai. Rgb-infrared cross-modality per-
+son re-identification. In Proceedings of the IEEE interna-
+tional Conference on Computer Vision (ICCV), pages 5380–
+5389, 2017. 2, 6
+[36] Ancong Wu, Chengzhi Lin, and Wei-Shi Zheng.
+Asym-
+metric mutual learning for unsupervised transferable visible-
+infrared re-identification. IEEE Transactions on Circuits and
+Systems for Video Technology, 34(11):10524–10537, 2024.
+1, 3
+[37] Zesen Wu and Mang Ye. Unsupervised visible-infrared per-
+son re-identification via progressive graph matching and al-
+ternate learning. In Proceedings of the IEEE/CVF Confer-
+ence on Computer Vision and Pattern Recognition (CVPR),
+pages 9548–9558, 2023. 3, 7
+[38] Ruida Xi, Nianchang Huang, Changzhou Lai, Qiang Zhang,
+and Jungong Han. Fmcnet+: Feature-level modality com-
+pensation for visible-infrared person re-identification. IEEE
+Transactions on Neural Networks and Learning Systems, 36
+(7):13247–13261, 2025. 2
+[39] Bin Yang, Mang Ye, Jun Chen, and Zesen Wu.
+Aug-
+mented dual-contrastive aggregation learning for unsuper-
+vised visible-infrared person re-identification. In Proceed-
+ings of the 30th ACM International Conference on Multime-
+dia (ACMMM), pages 2843–2851, 2022. 3, 4, 7
+[40] Bin Yang, Jun Chen, and Mang Ye. Towards grand unified
+representation learning for unsupervised visible-infrared per-
+son re-identification. In Proceedings of the IEEE/CVF In-
+ternational Conference on Computer Vision (ICCV), pages
+11069–11079, 2023. 3, 7
+[41] Bin Yang, Jun Chen, Cuiqun Chen, and Mang Ye.
+Dual
+consistency-constrained learning for unsupervised visible-
+infrared person re-identification. IEEE Transactions on In-
+formation Forensics and Security, 19:1767–1779, 2024. 3
+[42] Bin Yang, Jun Chen, and Mang Ye. Shallow-deep collab-
+orative learning for unsupervised visible-infrared person re-
+identification. In Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recognition (CVPR), pages
+16870–16879, 2024. 3
+[43] Yiming Yang, Weipeng Hu, and Haifeng Hu. Progressive
+cross-modal association learning for unsupervised visible-
+infrared person re-identification. IEEE Transactions on In-
+formation Forensics and Security, 20:1290–1304, 2025. 1,
+3, 7
+[44] Mang Ye, Xiangyuan Lan, Jiawei Li, and Pong Yuen. Hi-
+erarchical discriminative learning for visible thermal person
+re-identification. In Proceedings of the AAAI Conference on
+Artificial Intelligence (AAAI), pages 7501–7508, 2018. 2
+[45] Mang Ye, Zheng Wang, Xiangyuan Lan, and Pong C. Yuen.
+Visible thermal person re-identification via dual-constrained
+top-ranking. In Proceedings of the Twenty-Seventh Interna-
+tional Joint Conference on Artificial Intelligence, (IJCAI),
+pages 1092–1099, 2018. 2, 6
+[46] Mang Ye, Jianbing Shen, and Ling Shao. Visible-infrared
+person re-identification via homogeneous augmented tri-
+12668
+
+=== PAGE 11 ===
+modal learning. IEEE Transactions on Information Foren-
+sics and Security, 16:728–739, 2020. 2
+[47] Mang Ye, Weijian Ruan, Bo Du, and Mike Zheng Shou.
+Channel augmented joint learning for visible-infrared recog-
+nition.
+In 2021 IEEE/CVF International Conference on
+Computer Vision (ICCV), pages 13547–13556, 2021. 2, 7
+[48] Mang Ye, Jianbing Shen, Gaojie Lin, Tao Xiang, Ling
+Shao, and Steven C. H. Hoi. Deep learning for person re-
+identification: A survey and outlook.
+IEEE Transactions
+on Pattern Analysis and Machine Intelligence, 44(6):2872–
+2893, 2022. 2, 4, 6, 7
+[49] Mang Ye, Zesen Wu, and Bo Du. Dual-level matching with
+outlier filtering for unsupervised visible-infrared person re-
+identification. IEEE Transactions on Pattern Analysis and
+Machine Intelligence, 47(5):3815–3829, 2025. 3, 7
+[50] Xiangbo Yin, Jiangming Shi, Yachao Zhang, Yang Lu,
+Zhizhong Zhang, Yuan Xie, and Yanyun Qu.
+Robust
+pseudo-label learning with neighbor relation for unsuper-
+vised visible-infrared person re-identification. In Proceed-
+ings of the 32nd ACM International Conference on Multime-
+dia (ACMMM), pages 2242–2251, 2024. 1, 3
+[51] Hao Yu, Xu Cheng, Wei Peng, Weihao Liu, and Guoying
+Zhao. Modality unifying network for visible-infrared per-
+son re-identification. In Proceedings of the IEEE/CVF In-
+ternational Conference on Computer Vision (ICCV), pages
+11185–11195, 2023. 7
+[52] Xiaoyan Yu, Neng Dong, Liehuang Zhu, Hao Peng, and
+Dapeng Tao.
+Clip-driven semantic discovery network for
+visible-infrared person re-identification. IEEE Transactions
+on Multimedia, 27:4137–4150, 2025. 7
+[53] Qiang Zhang, Changzhou Lai, Jianan Liu, Nianchang
+Huang, and Jungong Han. Fmcnet: Feature-level modality
+compensation for visible-infrared person re-identification. In
+Proceedings of the IEEE/CVF Conference on Computer Vi-
+sion and Pattern Recognition (CVPR), pages 7349–7358,
+2022. 2
+[54] Yukang Zhang and Hanzi Wang. Diverse embedding expan-
+sion network and low-light cross-modality benchmark for
+visible-infrared person re-identification. In 2023 IEEE/CVF
+Conference on Computer Vision and Pattern Recognition
+(CVPR), pages 2153–2162, 2023. 1, 2, 6, 7
+[55] Zhiwei Zhao, Bin Liu, Qi Chu, Yan Lu, and Nenghai
+Yu. Joint color-irrelevant consistency learning and identity-
+aware modality adaptation for visible-infrared cross modal-
+ity person re-identification. In Proceedings of the AAAI con-
+ference on artificial intelligence (AAAI), pages 3520–3528,
+2021. 2
+[56] Xiying Zheng, Yukang Zhang, Yang Lu, and Hanzi Wang.
+Semi-supervised visible-infrared person re-identification via
+modality unification and confidence guidance. In Proceed-
+ings of the 32nd ACM International Conference on Multime-
+dia (ACMMM), pages 5761–5770, 2024. 1, 3
+[57] Chuhao Zhou, Jinxing Li, Huafeng Li, Guangming Lu, Yong
+Xu, and Min Zhang. Video-based visible-infrared person re-
+identification via style disturbance defense and dual interac-
+tion. In Proceedings of the 31st ACM International Confer-
+ence on Multimedia (ACMMM), page 46–55, 2023. 6
+12669

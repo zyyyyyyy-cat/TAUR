@@ -1,0 +1,39 @@
+--- before/loss/wrt_loss.py
++++ after/loss/wrt_loss.py
+@@ -3,7 +3,13 @@
+ import numpy as np
+ 
+ # Adaptive weights
+-def softmax_weights(dist, mask):
++def softmax_weights(dist, mask, stable=False):
++    if stable:
++        valid = mask.bool()
++        logits = dist.masked_fill(~valid, -torch.inf)
++        nonempty = valid.any(dim=1, keepdim=True)
++        logits = torch.where(nonempty, logits, torch.zeros_like(logits))
++        return torch.softmax(logits, dim=1).masked_fill(~valid, 0)
+     max_v = torch.max(dist * mask, dim=1, keepdim=True)[0]
+     diff = dist - max_v
+     Z = torch.sum(torch.exp(diff) * mask, dim=1, keepdim=True) + 1e-6 # avoid division by zero
+@@ -32,8 +38,9 @@
+ class TripletLoss_WRT(nn.Module):
+     """Weighted Regularized Triplet'."""
+ 
+-    def __init__(self):
++    def __init__(self, stable=False):
+         super(TripletLoss_WRT, self).__init__()
++        self.stable = stable
+         self.ranking_loss = nn.SoftMarginLoss()
+ 
+     def forward(self, inputs, targets, normalize_feature=False):
+@@ -51,8 +58,8 @@
+         dist_ap = dist_mat * is_pos
+         dist_an = dist_mat * is_neg
+ 
+-        weights_ap = softmax_weights(dist_ap, is_pos)
+-        weights_an = softmax_weights(-dist_an, is_neg)
++        weights_ap = softmax_weights(dist_ap, is_pos, stable=self.stable)
++        weights_an = softmax_weights(-dist_an, is_neg, stable=self.stable)
+         furthest_positive = torch.sum(dist_ap * weights_ap, dim=1)
+         closest_negative = torch.sum(dist_an * weights_an, dim=1)
+ 

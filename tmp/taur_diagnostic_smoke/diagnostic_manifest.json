@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "evaluation": {
+    "TOP_K_EVAL": 0,
+    "RE_RANKING": false,
+    "NECK_FEAT": "before",
+    "FEAT_NORM": true,
+    "same_camera_filter": "all_gallery",
+    "precision": "float32"
+  },
+  "states": {
+    "uad": {
+      "checkpoint_sha256": "other",
+      "feature_sha256": "3ce66124858953657f361a4ca1f6def9680f4cf4977b84497cc5e72b169a23cb"
+    },
+    "taur_on": {
+      "checkpoint_sha256": "same",
+      "feature_sha256": "c5f70e132008a6099ad0344d5b7e7fe00a3c4b68b4348aaf8f31e7a4426b0bfd"
+    },
+    "taur_off": {
+      "checkpoint_sha256": "same",
+      "feature_sha256": "3ce66124858953657f361a4ca1f6def9680f4cf4977b84497cc5e72b169a23cb"
+    }
+  },
+  "analysis": {
+    "chunk_size": 3,
+    "bootstrap_samples": 20,
+    "bootstrap_seed": 1234,
+    "bootstrap_unit": "query_pid",
+    "full_gallery": true,
+    "sorting": "FP32 normalized squared Euclidean; torch.argsort",
+    "tie_policy": "torch default ordering; V3 C_img/C_id use strict similarity >",
+    "limitation": "Fixed checkpoints/query sampling only; no across-training-seed inference"
+  }
+}

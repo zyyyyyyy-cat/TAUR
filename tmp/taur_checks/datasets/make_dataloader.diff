@@ -1,0 +1,76 @@
+--- before/datasets/make_dataloader.py
++++ after/datasets/make_dataloader.py
+@@ -7,6 +7,7 @@
+ from .sampler import PKMSampler
+ from .whu_mars import WHU_MARS
+ from .sampler_ddp import PKMSampler_DDP
++from .sampler_camera import CameraPKMSampler
+ import torch.distributed as dist
+ 
+ __factory = {
+@@ -21,6 +22,14 @@
+     pids = torch.tensor(pids, dtype=torch.int64)
+     camids = [torch.tensor([sample[m] for sample in camids_ls], dtype=torch.int64) for m in range(num_modalities)]
+     return imgs, pids, camids
++
++
++def taur_train_collate_fn(batch):
++    imgs, pids, cams = train_collate_fn([row[:3] for row in batch])
++    # torch.cat(imgs) is modality-major, so metadata must be modality-major too.
++    modids = torch.tensor([row[3] for row in batch], dtype=torch.long).t().reshape(-1)
++    sampleids = torch.tensor([row[4] for row in batch], dtype=torch.long).t().reshape(-1)
++    return imgs, pids, cams, modids, sampleids
+ 
+ 
+ def val_collate_fn(batch):
+@@ -53,7 +62,9 @@
+                                              dataset_dir=cfg.DATASETS.DATASET_DIR,
+                                              filter_gd=cfg.DATASETS.FILTER_GD)
+ 
+-    train_set = ImageDataset(dataset.train, modalities=modalities, transform=train_transforms)
++    train_set = ImageDataset(dataset.train, modalities=modalities, transform=train_transforms,
++                             return_metadata=cfg.TAUR.ENABLED)
++    collate = taur_train_collate_fn if cfg.TAUR.ENABLED else train_collate_fn
+     num_classes = dataset.num_train_pids
+     cam_num = dataset.num_train_cams
+     view_num = dataset.num_train_vids
+@@ -82,7 +93,10 @@
+             )
+         if dist.get_rank() == 0:
+             print('DIST_TRAIN START')
+-        data_sampler = PKMSampler_DDP(
++        data_sampler = CameraPKMSampler(
++            dataset.train, cfg.SOLVER.IMS_PER_BATCH, cfg.DATALOADER.NUM_INSTANCE,
++            modalities, cfg.SOLVER.SEED, dist.get_rank(), world_size,
++        ) if cfg.DATALOADER.CAMERA_PRIORITY else PKMSampler_DDP(
+             dataset.train,
+             cfg.SOLVER.IMS_PER_BATCH,
+             cfg.DATALOADER.NUM_INSTANCE,
+@@ -93,21 +107,24 @@
+             train_set,
+             num_workers=num_workers,
+             batch_sampler=batch_sampler,
+-            collate_fn=train_collate_fn,
++            collate_fn=collate,
+             pin_memory=True,
+         )
+     else:
+         train_loader = DataLoader(
+             train_set,
+             batch_size=cfg.SOLVER.IMS_PER_BATCH,
+-            sampler=PKMSampler(
++            sampler=CameraPKMSampler(
++                dataset.train, cfg.SOLVER.IMS_PER_BATCH, cfg.DATALOADER.NUM_INSTANCE,
++                modalities, cfg.SOLVER.SEED,
++            ) if cfg.DATALOADER.CAMERA_PRIORITY else PKMSampler(
+                 dataset.train,
+                 cfg.SOLVER.IMS_PER_BATCH,
+                 cfg.DATALOADER.NUM_INSTANCE,
+                 modalities=modalities,
+             ),
+             num_workers=num_workers,
+-            collate_fn=train_collate_fn,
++            collate_fn=collate,
+         )
+ 
+     val_loaders = []

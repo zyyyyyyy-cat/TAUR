@@ -1,0 +1,28 @@
+--- before/configs/TAUR.yml
++++ after/configs/TAUR.yml
+@@ -2,6 +2,7 @@
+   PRETRAIN_CHOICE: 'imagenet'
+   PRETRAIN_PATH: 'jx_vit_base_p16_224-80ecf9dd.pth'
+   METRIC_LOSS_TYPE: 'wrt'
++  WRT_STABLE: True
+   IF_LABELSMOOTH: 'off'
+   IF_WITH_CENTER: 'no'
+   NAME: 'transformer'
+@@ -40,7 +41,7 @@
+   SEED: 1234
+   WARMUP_METHOD: 'linear'
+   WARMUP_EPOCHS: 5
+-  CHECKPOINT_PERIOD: 120
++  CHECKPOINT_PERIOD: 10
+   LOG_PERIOD: 50
+   EVAL_PERIOD: 10
+   WEIGHT_DECAY:  1e-4
+@@ -54,7 +55,7 @@
+   NECK_FEAT: 'before'
+   FEAT_NORM: 'yes'
+ 
+-OUTPUT_DIR: './logs/TAUR_1000'
++OUTPUT_DIR: './logs/TAUR_1000_v2'
+ 
+ TAUR:
+   ENABLED: True

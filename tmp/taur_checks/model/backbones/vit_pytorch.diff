@@ -1,0 +1,51 @@
+--- before/model/backbones/vit_pytorch.py
++++ after/model/backbones/vit_pytorch.py
+@@ -28,6 +28,7 @@
+ import torch.nn as nn
+ import torch.nn.functional as F
+ import collections.abc as container_abcs
++from .thermal_adapter import ThermalAdapter
+ 
+ 
+ # From PyTorch internals
+@@ -294,6 +295,15 @@
+ 
+         self.apply(self._init_weights)
+ 
++        # Created separately after pretrained UAD initialization by the outer model.
++        self.thermal_adapters = nn.ModuleDict()
++
++    def enable_thermal_adapters(self, layers=(6, 9), bottleneck=128, rho=0.10):
++        if not layers or len(set(layers)) != len(layers) or any(i < 1 or i >= len(self.blocks) for i in layers):
++            raise ValueError('TAUR layers must be distinct and precede the final CLS block')
++        self.thermal_adapters = nn.ModuleDict({str(i): ThermalAdapter(
++            self.embed_dim, bottleneck, rho) for i in layers})
++
+     def _init_weights(self, m):
+         if isinstance(m, nn.Linear):
+             trunc_normal_(m.weight, std=.02)
+@@ -316,6 +326,12 @@
+ 
+     def forward_features(self, x, camera_id, modal_id, view_id):
+         B = x.shape[0]
++        if self.thermal_adapters:
++            if modal_id is None:
++                raise ValueError('TAUR requires explicit modality IDs for training and inference')
++            modal_id = torch.as_tensor(modal_id, device=x.device, dtype=torch.long)
++            if modal_id.shape != (B,) or not ((modal_id >= 1) & (modal_id <= 3)).all():
++                raise ValueError('TAUR modality IDs must have shape [B] and values 1/2/3')
+         x = self.patch_embed(x)
+ 
+         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+@@ -333,8 +349,10 @@
+ 
+         x = self.pos_drop(x)
+  
+-        for blk in self.blocks:
++        for layer, blk in enumerate(self.blocks, start=1):
+             x = blk(x)
++            if str(layer) in self.thermal_adapters:
++                x = self.thermal_adapters[str(layer)](x, modal_id)
+ 
+         x = self.norm(x)
+ 

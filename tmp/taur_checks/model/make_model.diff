@@ -1,0 +1,53 @@
+--- before/model/make_model.py
++++ after/model/make_model.py
+@@ -63,16 +63,31 @@
+         self.bottleneck = nn.BatchNorm1d(self.in_planes)
+         self.bottleneck.bias.requires_grad_(False)
+         self.bottleneck.apply(weights_init_kaiming)
++
++        self.taur_enabled = cfg.TAUR.ENABLED
++        if self.taur_enabled:
++            if list(cfg.DATASETS.MODALITIES) != ['RGB', 'IR', 'Thermal']:
++                raise ValueError('TAUR requires WHU modality order RGB, IR, Thermal (IDs 1,2,3)')
++            if self.neck_feat != 'before' or cfg.TEST.FEAT_NORM != 'yes' or cfg.TEST.RE_RANKING:
++                raise ValueError('TAUR requires normalized pre-BN retrieval without re-ranking')
++            if cfg.MODEL.SIE_CAMERA or cfg.MODEL.SIE_VIEW:
++                raise ValueError('TAUR uses the UAD backbone without SIE')
++            if cfg.TAUR.RANK_WEIGHT < 0 or cfg.TAUR.RAMP_END_EPOCH <= cfg.TAUR.WARMUP_EPOCHS:
++                raise ValueError('Invalid TAUR rank weight schedule')
++            self.base.enable_thermal_adapters(cfg.TAUR.LAYERS, cfg.TAUR.BOTTLENECK, cfg.TAUR.RHO)
++
++    def adapter_parameters(self):
++        return self.base.thermal_adapters.parameters()
+         
+-    def forward(self, x=None, label=None, camids=None, mode=0):
++    def forward(self, x=None, label=None, camids=None, mode=0, modality_ids=None):
+         if mode==0:
+             x = torch.cat(list(x), dim=0)
+-            global_feat = self.base(x)
++            global_feat = self.base(x, modal_label=modality_ids)
+             feat = self.bottleneck(global_feat)
+             cls_score = self.classifier(feat)
+             return cls_score, global_feat, feat
+         else:
+-            global_feat = self.base(x)
++            global_feat = self.base(x, modal_label=modality_ids)
+             feat = self.bottleneck(global_feat)
+             if self.neck_feat == 'after':
+                 return feat
+@@ -81,7 +96,14 @@
+ 
+ 
+     def load_param(self, trained_path):
+-        param_dict = torch.load(trained_path)
++        param_dict = torch.load(trained_path, map_location='cpu')
++        param_dict = param_dict.get('state_dict', param_dict)
++        param_dict = {(k[7:] if k.startswith('module.') else k): v for k, v in param_dict.items()}
++        adapter_keys = {k for k in self.state_dict() if 'thermal_adapters.' in k}
++        saved_adapter_keys = {k for k in param_dict if 'thermal_adapters.' in k}
++        if adapter_keys != saved_adapter_keys:
++            raise ValueError('Checkpoint/config Adapter mismatch; use matching TAUR settings. '
++                             'For UAD initialization use load_param_finetune, not test loading.')
+         for i in param_dict:
+             if 'classifier' in i:
+                 continue

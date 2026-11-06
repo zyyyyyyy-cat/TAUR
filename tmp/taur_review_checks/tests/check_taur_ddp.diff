@@ -1,0 +1,90 @@
+--- before/tests/check_taur_ddp.py
++++ after/tests/check_taur_ddp.py
+@@ -14,9 +14,11 @@
+ import torch.multiprocessing as mp
+ from torch.nn.parallel import DistributedDataParallel as DDP
+ from model.backbones.vit_pytorch import TransReID
+-from processor.taur_grad import adapter_rank_gradients, merge_adapter_gradients, synchronize_gradients
++from processor.taur_grad import (adapter_rank_gradients, merge_adapter_gradients, synchronize_gradients,
++                                direction_gradient_diagnostics, gradient_contribution, step_with_scaler)
+ from loss.taur_rank_loss import TAURRankingLoss
+ from datasets.sampler_camera import CameraPKMSampler
++from amp_compat import cpu_scaler
+ 
+ 
+ def make_model():
+@@ -45,7 +47,7 @@
+         base = f.square().mean()
+         extra, _, _ = TAURRankingLoss()(f, *meta)
+         adapters = tuple(reference.thermal_adapters.parameters())
+-        grads = adapter_rank_gradients(extra, adapters, torch.amp.GradScaler('cpu', enabled=False), weight)
++        grads = adapter_rank_gradients(extra, adapters, cpu_scaler(enabled=False), weight)
+         base.backward()
+         merge_adapter_gradients(adapters, grads)
+         contributions.append([None if p.grad is None else p.grad.clone() for p in reference.parameters()])
+@@ -65,34 +67,47 @@
+     inputs = [torch.randn(12, 3, 32, 16, generator=generator) for _ in range(2)]
+     optimizer = torch.optim.SGD(ddp.parameters(), lr=0.01)
+     # CPU scaling exercises scaled-gradient merging; CUDA FP16 remains a server check.
+-    scaler = torch.amp.GradScaler('cpu', init_scale=128)
+-    for step in range(4):
++    scaler = cpu_scaler(init_scale=128)
++    for step in range(5):
+         weight = 0 if step == 0 else 0.1
+         invalid = step == 2
+         reference.load_state_dict(model.state_dict())
+         expected = reference_gradients(reference, inputs, invalid, weight)
++        original = copy.deepcopy(model.state_dict())
+         optimizer.zero_grad(set_to_none=True)
+         meta = local_metadata(rank, invalid and rank == 1)
+         context = ddp.no_sync() if weight else __import__('contextlib').nullcontext()
+         with context:
+             f = ddp(inputs[rank], modal_label=meta[2])
+             base = f.square().mean()
+-            extra, _, _ = TAURRankingLoss()(f, *meta)
++            extra, directions, _ = TAURRankingLoss()(f, *meta)
+             adapters = tuple(model.thermal_adapters.parameters())
++            if weight:
++                report = direction_gradient_diagnostics(directions, adapters, scaler, weight, ddp=True)
++                assert all(torch.isfinite(torch.tensor(v['mean_gradient_norm'])) for v in report.values())
+             grads = adapter_rank_gradients(extra, adapters, scaler, weight) if weight else None
+             scaler.scale(base).backward()
+             if grads is not None:
++                contribution = gradient_contribution(adapters, grads, scaler, ddp=True)
++                assert contribution['uad_adapter_norm'] >= 0
+                 merge_adapter_gradients(adapters, grads)
++        if step == 4 and rank == 1:
++            next(model.parameters()).grad.fill_(float('inf'))
+         if weight:
+             synchronize_gradients(ddp, bucket_mb=0.001)
+         scaler.unscale_(optimizer)
+         for parameter, gradient in zip(model.parameters(), expected):
+             if gradient is None:
+                 assert parameter.grad is None
+-            else:
++            elif step != 4:
+                 torch.testing.assert_close(parameter.grad, gradient, atol=2e-6, rtol=2e-4)
+-        scaler.step(optimizer)
+-        scaler.update()
++        updated, before, after = step_with_scaler(optimizer, scaler)
++        if step == 4:
++            assert not updated and after < before
++            for name, value in model.state_dict().items():
++                torch.testing.assert_close(value, original[name], atol=0, rtol=0)
++        else:
++            assert updated
+         for p in model.parameters():
+             peer = p.detach().clone()
+             dist.broadcast(peer, src=0)
+@@ -110,8 +125,9 @@
+         ids = [{data['RGB'][t[0]][1] for t in part[step * 8:(step + 1) * 8]} for part in gathered]
+         assert len(ids[0]) == len(ids[1]) == 2 and ids[0].isdisjoint(ids[1])
+     if rank == 0:
+-        print('PASS: 2-process DDP, base-to-routed transition, AMP scaling, zero-direction rank, '
+-              'reference mean gradients, unused head, equal parameters, camera PKM shards.')
++        print('PASS: 2-process DDP, base-to-routed transition, AMP scaling and diagnostics, '
++              'one-rank overflow with all-rank skipping, zero-direction rank, reference mean gradients, '
++              'unused head, equal parameters, camera PKM shards.')
+     dist.destroy_process_group()
+ 
+ 

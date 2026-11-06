@@ -1,0 +1,11 @@
+--- before/config/defaults.py
++++ after/config/defaults.py
+@@ -42,6 +42,8 @@
+ _C.MODEL.GPD_MOMENTUM = 0.2
+ 
+ _C.MODEL.METRIC_LOSS_TYPE = 'triplet'
++# Preserve legacy UAD numerical behavior unless explicitly enabled.
++_C.MODEL.WRT_STABLE = False
+ # If train with multi-gpu ddp mode, options: 'True', 'False'
+ _C.MODEL.DIST_TRAIN = False
+ # If train with soft triplet loss, options: 'True', 'False'

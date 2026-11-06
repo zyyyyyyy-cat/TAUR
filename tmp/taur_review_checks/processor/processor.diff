@@ -1,0 +1,206 @@
+--- before/processor/processor.py
++++ after/processor/processor.py
+@@ -10,7 +10,8 @@
+ import torch.nn.functional as F
+ from contextlib import nullcontext
+ from loss.taur_rank_loss import TAURRankingLoss, rank_weight
+-from .taur_grad import adapter_rank_gradients, merge_adapter_gradients, synchronize_gradients
++from .taur_grad import (adapter_rank_gradients, merge_adapter_gradients, synchronize_gradients,
++                        direction_gradient_diagnostics, gradient_contribution, step_with_scaler)
+ 
+ 
+ def PCA(feat, target, num_modalities, group_size=4):
+@@ -105,7 +106,7 @@
+     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+     eval_period = cfg.SOLVER.EVAL_PERIOD
+ 
+-    device = 'cuda'
++    device = torch.device('cuda', local_rank) if cfg.MODEL.DEVICE == 'cuda' else torch.device('cpu')
+     epochs = cfg.SOLVER.MAX_EPOCHS
+ 
+     logger = logging.getLogger('transreid.train')
+@@ -120,12 +121,13 @@
+     if is_main:
+         logger.info('start training')
+     if device:
+-        model.to(local_rank)
++        model.to(device)
+         if dist_on:
+             if is_main:
+                 logger.info('Using {} GPUs for DDP training'.format(dist.get_world_size()))
+             model = torch.nn.parallel.DistributedDataParallel(
+-                model, device_ids=[local_rank], output_device=local_rank,
++                model, device_ids=[local_rank] if device.type == 'cuda' else None,
++                output_device=local_rank if device.type == 'cuda' else None,
+                 # The ViT backbone retains its ImageNet classification head
+                 # (base.fc), while ReID training uses the outer classifier.
+                 # Consequently base.fc never participates in the loss.
+@@ -147,7 +149,7 @@
+         top_k=cfg.TEST.TOP_K_EVAL,
+         logger=logger,
+     )
+-    scaler = amp.GradScaler()
++    scaler = amp.GradScaler(enabled=device.type == 'cuda')
+     model_meta = model.module if hasattr(model, 'module') else model
+     feat_dim = getattr(model_meta, 'in_planes', 768)
+     num_classes = getattr(model_meta, 'num_classes', 500)
+@@ -155,6 +157,7 @@
+     use_aux_modules = loss_type != 'base'
+     if is_main:
+         logger.info('Feature dimension: {}; identities: {}'.format(feat_dim, num_classes))
++        logger.info('WRT stable masked softmax: %s', cfg.MODEL.WRT_STABLE)
+     if use_aux_modules:
+         proto_bank = PrototypeBank(
+             num_classes=num_classes,
+@@ -174,6 +177,7 @@
+             logger.info('TAUR Adapter parameters: {}; ranking candidates are local to each rank'.format(
+                 sum(p.numel() for p in adapter_params)))
+     total_steps = 0
++    successful_steps, skipped_steps = 0, 0
+ 
+     for epoch in range(1, epochs + 1):
+         start_time = time.time()
+@@ -192,6 +196,8 @@
+         direction_counts = {d: dict(queries=0, possible_queries=0, positive_pairs=0,
+                                     negative_pairs=0, positive_camera_sum=0)
+                             for d in TAURRankingLoss.DIRECTIONS}
++        rank_meter = AverageMeter()
++        epoch_success, epoch_skipped = 0, 0
+ 
+         n_iter = 0
+         for n_iter, batch in enumerate(train_loader):
+@@ -218,7 +224,7 @@
+                 for buffer in model_meta.buffers():
+                     dist.broadcast(buffer, src=0)
+             with sync_context:
+-                with amp.autocast(enabled=True):
++                with amp.autocast(enabled=device.type == 'cuda'):
+                     cls_score, global_feat, feat = model(imgs, target, camids,
+                                                          modality_ids=modids if taur_on else None)
+ 
+@@ -252,6 +258,8 @@
+                             loss += loss_gpd
+ 
+                 rank_grads = None
++                diagnose = taur_on and rank_lambda > 0 and cfg.TAUR.LOG_DIRECTION_GRADS and (
++                    (n_iter + 1) % log_period == 0)
+                 if taur_on:
+                     rank_loss, direction_losses, stats = rank_criterion(
+                         global_feat, target_rep, all_camids, modids, sampleids)
+@@ -259,29 +267,37 @@
+                         direction_meter[direction].update(direction_losses[direction].item())
+                         for key, count in stats[direction].items():
+                             direction_counts[direction][key] += count
++                    rank_meter.update(rank_loss.item())
+                     if rank_lambda > 0:
+-                        if cfg.TAUR.LOG_DIRECTION_GRADS and (n_iter + 1) % log_period == 0:
+-                            norms = {}
+-                            for direction, value in direction_losses.items():
+-                                grads = torch.autograd.grad(value * (0.25 * rank_lambda), adapter_params,
+-                                                            retain_graph=True, allow_unused=True)
+-                                norms[direction] = sum(g.float().square().sum().item()
+-                                                       for g in grads if g is not None) ** 0.5
++                        if diagnose:
++                            norms = direction_gradient_diagnostics(
++                                direction_losses, adapter_params, scaler, rank_lambda, ddp=dist_on)
+                             rank_norms = [None] * dist.get_world_size() if dist_on else [norms]
+                             if dist_on:
+                                 dist.all_gather_object(rank_norms, norms)
+                             if is_main:
+-                                logger.info('TAUR weighted local Adapter gradient norms by rank: %s', rank_norms)
++                                logger.info('TAUR AMP-safe direction gradients by rank '
++                                            '(0.25*lambda; local and DDP-mean norms): %s', rank_norms)
+                         rank_grads = adapter_rank_gradients(rank_loss, adapter_params, scaler, rank_lambda)
+                 scaler.scale(loss).backward()
+                 if rank_grads is not None:
++                    if diagnose:
++                        contribution = gradient_contribution(adapter_params, rank_grads, scaler, ddp=dist_on)
++                        if is_main:
++                            logger.info('TAUR mean Adapter gradient contribution before clipping: %s', contribution)
+                     merge_adapter_gradients(adapter_params, rank_grads)
+             if dist_on and rank_lambda > 0:
+                 synchronize_gradients(model)
+             scaler.unscale_(optimizer)
+-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+-            scaler.step(optimizer)
+-            scaler.update()
++            total_grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
++            updated, scale_before, scale_after = step_with_scaler(optimizer, scaler)
++            successful_steps += int(updated)
++            skipped_steps += int(not updated)
++            epoch_success += int(updated)
++            epoch_skipped += int(not updated)
++            if is_main and not updated:
++                logger.warning('AMP skipped optimizer step: epoch=%s iteration=%s scale=%s->%s',
++                               epoch, n_iter + 1, scale_before, scale_after)
+ 
+             if use_aux_modules:
+                 with torch.no_grad():
+@@ -292,11 +308,12 @@
+             loss_meter.update(loss.item(), target.shape[0])
+             acc_meter.update(acc, 1)
+ 
+-            torch.cuda.synchronize(local_rank)
++            if device.type == 'cuda':
++                torch.cuda.synchronize(local_rank)
+ 
+             if is_main and (n_iter + 1) % log_period == 0:
+                 logger.info(
+-                    'Epoch[{}] Iteration[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}'.format(
++                    'Epoch[{}] Iteration[{}/{}] UAD Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}'.format(
+                         epoch,
+                         (n_iter + 1),
+                         len(train_loader),
+@@ -308,6 +325,10 @@
+                 metrics = [f'{m.avg:.3f}' for m in meter_ls]
+                 metrics_str = ', '.join(metrics)
+                 logger.info(f'Epoch[{epoch}] {metrics_str}')
++                logger.info('Rank Loss: %.6f, weighted Rank: %.6f, lambda: %.5f, '
++                            'gradient norm before clipping: %.6g, AMP scale: %.6g',
++                            rank_meter.avg, rank_lambda * rank_meter.avg, rank_lambda,
++                            total_grad_norm.item(), scale_after)
+ 
+         if taur_on:
+             summary = {d: dict(direction_counts[d], loss=direction_meter[d].avg)
+@@ -326,8 +347,12 @@
+                                     counts['positive_pairs'] / nq, counts['negative_pairs'] / nq,
+                                     counts['positive_camera_sum'] / nq)
+         if is_main:
+-            logger.info('Actual epoch batches=%s cumulative optimizer attempts=%s images/rank/step=%s',
+-                        n_iter + 1, total_steps, target_rep.numel())
++            logger.info('Actual epoch batches=%s optimizer updates=%s AMP skips=%s; cumulative '
++                        'attempts=%s updates=%s skips=%s images/rank/step=%s',
++                        n_iter + 1, epoch_success, epoch_skipped, total_steps,
++                        successful_steps, skipped_steps, target_rep.numel())
++            if hasattr(sampler, 'last_stats'):
++                logger.info('Camera PKM global epoch coverage: %s', sampler.last_stats)
+         end_time = time.time()
+         time_per_batch = (end_time - start_time) / (n_iter + 1)
+         if dist_on:
+@@ -390,14 +415,15 @@
+                 logger.info(f'mAP: {mAP:.2%}')
+                 for r in (1, 5, 10):
+                     logger.info(f'CMC curve, Rank-{r:<2}: {cmc[r-1]:.2%}')
+-            torch.cuda.empty_cache()
++            if device.type == 'cuda':
++                torch.cuda.empty_cache()
+ 
+ 
+ def do_inference(cfg,
+                  model,
+                  val_loaders,
+                  num_querys):
+-    device = 'cuda'
++    device = torch.device(cfg.MODEL.DEVICE)
+     logger = logging.getLogger('transreid.test')
+     logger.info('Enter inferencing')
+ 
+@@ -419,7 +445,7 @@
+     evaluator.reset()
+ 
+     if device:
+-        if torch.cuda.device_count() > 1:
++        if device.type == 'cuda' and torch.cuda.device_count() > 1:
+             print('Using {} GPUs for inference'.format(torch.cuda.device_count()))
+             model = nn.DataParallel(model)
+         model.to(device)

@@ -1,0 +1,26 @@
+{
+  "modified": [
+    "config/defaults.py",
+    "configs/TAUR.yml",
+    "datasets/sampler_camera.py",
+    "docs/TAUR_IMPLEMENTATION.md",
+    "loss/make_loss.py",
+    "loss/wrt_loss.py",
+    "model/make_model.py",
+    "processor/processor.py",
+    "processor/taur_grad.py",
+    "tests/check_taur_ddp.py",
+    "tests/test_taur.py"
+  ],
+  "added": [
+    "tests/amp_compat.py",
+    "tests/test_taur_fixes.py",
+    "configs/UAD_TAUR_control.yml",
+    "docs/TAUR_FIXES.md"
+  ],
+  "deleted": [],
+  "tests": "31 passed",
+  "legacy_wrt": "loss and gradients bitwise equal",
+  "real_cpu_trainer": "6 epochs + validation + inference passed",
+  "real_ddp": "not validated: Gloo initialization unsupported device"
+}

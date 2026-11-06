@@ -1,0 +1,22 @@
+--- before/config/defaults.py
++++ after/config/defaults.py
+@@ -202,3 +202,19 @@
+ # ---------------------------------------------------------------------------- #
+ # Path to checkpoint and saved log of trained model
+ _C.OUTPUT_DIR = ""
++
++# TAUR-v1 is opt-in; old UAD configurations retain their behavior.
++_C.TAUR = CN()
++_C.TAUR.ENABLED = False
++_C.TAUR.LAYERS = [6, 9]
++_C.TAUR.BOTTLENECK = 128
++_C.TAUR.RHO = 0.10
++_C.TAUR.ADAPTER_LR_FACTOR = 3.0
++_C.TAUR.RANK_WEIGHT = 0.10
++_C.TAUR.MARGIN = 0.03
++_C.TAUR.TEMPERATURE = 0.07
++_C.TAUR.WARMUP_EPOCHS = 5
++_C.TAUR.RAMP_END_EPOCH = 20
++# Optional per-direction Adapter gradient measurements at LOG_PERIOD intervals.
++_C.TAUR.LOG_DIRECTION_GRADS = False
++_C.DATALOADER.CAMERA_PRIORITY = False

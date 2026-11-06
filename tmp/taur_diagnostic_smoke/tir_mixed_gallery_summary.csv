@@ -1,0 +1,4 @@
+﻿state,protocol,valid_queries,mAP,mINP,rank1,rank5,rank10,wrong_top1_queries,wrong_top1_fraction,mean_C_img,wrong_top1_RGB_fraction,wrong_top1_NIR_fraction,wrong_top1_TIR_fraction
+uad,TIR->ALL,8,56.37006886087767,52.720588235294116,50.0,100.0,100.0,4,0.5,4.694444444444445,0.5,0.25,0.25
+taur_on,TIR->ALL,8,56.206378384687206,52.720588235294116,50.0,100.0,100.0,4,0.5,4.708333333333333,0.5,0.25,0.25
+taur_off,TIR->ALL,8,56.37006886087767,52.720588235294116,50.0,100.0,100.0,4,0.5,4.694444444444445,0.5,0.25,0.25

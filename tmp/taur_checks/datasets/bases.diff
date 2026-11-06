@@ -1,0 +1,47 @@
+--- before/datasets/bases.py
++++ after/datasets/bases.py
+@@ -69,11 +69,16 @@
+         print("  ----------------------------------------")
+ 
+ class ImageDataset(Dataset):
+-    def __init__(self, dataset, modalities, transform=None):
++    def __init__(self, dataset, modalities, transform=None, return_metadata=False):
+         # dataset: dict(modality -> list of (img_path, pid, camid, modality_id))
+         self.dataset = dataset
+         self.modalities = list(modalities)
+         self.transform = transform
++        self.return_metadata = return_metadata
++        # Same raw path always has the same ID, including repeated sampling.
++        paths = sorted({osp.normcase(osp.abspath(row[0]))
++                        for m in self.modalities for row in dataset[m]}) if return_metadata else []
++        self.sample_ids = {path: i for i, path in enumerate(paths)}
+ 
+     def __len__(self):
+         return sum(len(self.dataset[m]) for m in self.modalities)
+@@ -82,9 +87,10 @@
+         if isinstance(index, tuple):
+             imgs = []
+             camids = []
++            pids, modids, sampleids = [], [], []
+             pid = None
+             for m_idx, modality in enumerate(self.modalities):
+-                img_path, cur_pid, camid, _ = self.dataset[modality][index[m_idx]]
++                img_path, cur_pid, camid, modid = self.dataset[modality][index[m_idx]]
+                 if pid is None:
+                     pid = cur_pid
+                 img = read_image(img_path)
+@@ -92,6 +98,14 @@
+                     img = self.transform(img)
+                 imgs.append(img)
+                 camids.append(camid)
++                if self.return_metadata:
++                    pids.append(cur_pid)
++                    modids.append(modid)
++                    sampleids.append(self.sample_ids[osp.normcase(osp.abspath(img_path))])
++            if self.return_metadata:
++                if len(set(pids)) != 1:
++                    raise ValueError('PKM tuple must contain the same identity across modalities')
++                return imgs, pid, camids, modids, sampleids
+             return imgs, pid, camids
+ 
+ class ImageDatasetTest(Dataset):
